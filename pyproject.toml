@@ -22,12 +22,12 @@ classifiers = [
 ]
 
 [tool.poetry.scripts]
-ftreekg           = "filetreekg.cli:cli"
-ftreekg-build     = "filetreekg.cli.cmd_build:build"
-ftreekg-query     = "filetreekg.cli.cmd_query:query"
-ftreekg-pack      = "filetreekg.cli.cmd_query:pack"
-ftreekg-analyze   = "filetreekg.cli.cmd_analyze:analyze"
-ftreekg-snapshot  = "filetreekg.cli.cmd_snapshot:snapshot"
+ftreekg           = "src.cli:cli"
+ftreekg-build     = "src.cli.cmd_build:build"
+ftreekg-query     = "src.cli.cmd_query:query"
+ftreekg-pack      = "src.cli.cmd_query:pack"
+ftreekg-analyze   = "src.cli.cmd_analyze:analyze"
+ftreekg-snapshot  = "src.cli.cmd_snapshot:snapshot"
 
 [tool.poetry.dependencies]
 python = ">3.12,<3.14"

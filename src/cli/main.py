@@ -13,7 +13,7 @@ import click
 
 
 @click.group()
-@click.version_option(version=importlib.metadata.version("filetreekg"))
+@click.version_option(version=importlib.metadata.version("ftree-kg"))
 def cli() -> None:
     """FTreeKG — knowledge graph tools for filesystem trees."""
 
