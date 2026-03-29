@@ -11,8 +11,8 @@ from pathlib import Path
 
 import click
 
-from src.cli.main import cli
-from src.cli.options import (
+from ftree_kg.cli.group import cli
+from ftree_kg.cli.options import (
     db_option,
     exclude_option,
     include_option,
@@ -20,8 +20,8 @@ from src.cli.options import (
     model_option,
     repo_option,
 )
-from src.config import load_exclude_dirs, load_include_dirs
-from src.module import FileTreeKG
+from ftree_kg.config import load_exclude_dirs, load_include_dirs
+from ftree_kg.module import FileTreeKG
 
 
 @cli.command("build")

@@ -11,9 +11,9 @@ from pathlib import Path
 
 import click
 
-from src.cli.main import cli
-from src.cli.options import db_option, lancedb_option, repo_option
-from src.module import FileTreeKG
+from ftree_kg.cli.group import cli
+from ftree_kg.cli.options import db_option, lancedb_option, repo_option
+from ftree_kg.module import FileTreeKG
 
 
 @cli.command("analyze")

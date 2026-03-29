@@ -1,10 +1,7 @@
-"""Root Click group for the FTreeKG CLI.
+"""Defines the root Click group for the FTreeKG CLI.
 
-Usage::
-
-    ftreekg --help
-    ftreekg --version
-    ftreekg build --help
+All command modules import ``cli`` from here to avoid circular imports.
+``main.py`` imports both this group and all command modules to register them.
 """
 
 import importlib.metadata
@@ -16,7 +13,3 @@ import click
 @click.version_option(version=importlib.metadata.version("ftree-kg"))
 def cli() -> None:
     """FTreeKG — knowledge graph tools for filesystem trees."""
-
-
-if __name__ == "__main__":
-    cli()

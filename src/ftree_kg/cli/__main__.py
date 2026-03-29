@@ -1,6 +1,6 @@
 """CLI entry point for FTreeKG."""
 
-from src.cli import cli
+from ftree_kg.cli import cli
 
 if __name__ == "__main__":
     cli()

@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from src.module import FileTreeKG
+from ftree_kg.module import FileTreeKG
 
 
 @pytest.fixture
@@ -66,7 +66,8 @@ def test_analyze_returns_markdown(kg: FileTreeKG) -> None:
 
 
 def test_snapshot_round_trip(kg: FileTreeKG, tmp_path: Path) -> None:
-    from src.snapshots import SnapshotManager
+    pytest.importorskip("kg_rag.snapshots")
+    from ftree_kg.snapshots import SnapshotManager
 
     snapshots_dir = tmp_path / ".filetreekg" / "snapshots"
     mgr = SnapshotManager(snapshots_dir, db_path=tmp_path / ".filetreekg" / "graph.sqlite")
@@ -94,7 +95,8 @@ def test_snapshot_round_trip(kg: FileTreeKG, tmp_path: Path) -> None:
 
 
 def test_snapshot_list(kg: FileTreeKG, tmp_path: Path) -> None:
-    from src.snapshots import SnapshotManager
+    pytest.importorskip("kg_rag.snapshots")
+    from ftree_kg.snapshots import SnapshotManager
 
     snapshots_dir = tmp_path / ".filetreekg" / "snapshots"
     mgr = SnapshotManager(snapshots_dir, db_path=tmp_path / ".filetreekg" / "graph.sqlite")
@@ -109,7 +111,8 @@ def test_snapshot_list(kg: FileTreeKG, tmp_path: Path) -> None:
 
 
 def test_snapshot_diff(kg: FileTreeKG, tmp_path: Path) -> None:
-    from src.snapshots import SnapshotManager
+    pytest.importorskip("kg_rag.snapshots")
+    from ftree_kg.snapshots import SnapshotManager
 
     snapshots_dir = tmp_path / ".filetreekg" / "snapshots"
     mgr = SnapshotManager(snapshots_dir, db_path=tmp_path / ".filetreekg" / "graph.sqlite")

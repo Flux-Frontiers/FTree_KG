@@ -4,13 +4,13 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
 name = "ftree-kg"
-version = "0.2.0"
+version = "0.4.0"
 description = "KGModule for file tree knowledge graphs"
 authors = ["Eric G. Suchanek, PhD <suchanek@mac.com>"]
 license = "Elastic-2.0"
 readme = "README.md"
 repository = "https://github.com/flux-frontiers/FTreeKG"
-packages = [{include = "src"}]
+packages = [{include = "ftree_kg", from = "src"}]
 keywords = ["knowledge-graph", "filesystem", "semantic-search", "kgmodule"]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -21,24 +21,19 @@ classifiers = [
 ]
 
 [tool.poetry.scripts]
-ftreekg           = "src.cli:cli"
-ftreekg-build     = "src.cli.cmd_build:build"
-ftreekg-query     = "src.cli.cmd_query:query"
-ftreekg-pack      = "src.cli.cmd_query:pack"
-ftreekg-analyze   = "src.cli.cmd_analyze:analyze"
-ftreekg-snapshot  = "src.cli.cmd_snapshot:snapshot"
+ftreekg           = "ftree_kg.cli:cli"
+ftreekg-build     = "ftree_kg.cli.cmd_build:build"
+ftreekg-query     = "ftree_kg.cli.cmd_query:query"
+ftreekg-pack      = "ftree_kg.cli.cmd_query:pack"
+ftreekg-analyze   = "ftree_kg.cli.cmd_analyze:analyze"
+ftreekg-snapshot  = "ftree_kg.cli.cmd_snapshot:snapshot"
 
 [tool.poetry.dependencies]
 python = ">=3.12,<3.14"
 click = "^8.1.0"
-kg-rag = { git = "https://github.com/Flux-Frontiers/KGRAG.git", optional = true }
-code-kg = { git = "https://github.com/Flux-Frontiers/code_kg.git", optional = true }
-doc-kg = { git = "https://github.com/Flux-Frontiers/doc_kg.git", optional = true }
 
-[tool.poetry.extras]
-code-kg = ["code-kg"]
-doc-kg = ["doc-kg"]
-kgrag = ["kg-rag", "code-kg", "doc-kg"]
+code-kg = { git = "https://github.com/Flux-Frontiers/code_kg.git"}
+doc-kg = { git = "https://github.com/Flux-Frontiers/doc_kg.git"}
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.0.0"
@@ -62,6 +57,10 @@ strict = true
 warn_unused_ignores = true
 disallow_untyped_defs = true
 
+[[tool.mypy.overrides]]
+module = ["code_kg.*", "kg_rag.*", "ftree_kg.*"]
+ignore_missing_imports = true
+
 [tool.pylint.MASTER]
 ignored-modules = ["code_kg", "code_kg.module", "code_kg.module.types", "kg_rag", "kg_rag.adapters.base", "kg_rag.primitives", "click", "pytest"]
 
@@ -83,7 +82,17 @@ disable = [
 
 [tool.filetreekg]
 # Directories to include in indexing (empty = include all)
-# include = ["src", "docs"]
+include = ["src", "docs"]
 
 # Directories to exclude at every depth (in addition to DEFAULT_SKIP_DIRS)
 # exclude = ["archives", "backups"]
+
+[tool.codekg]
+# Directories to include in the knowledge graph build and analysis.
+# When unset, all directories are indexed.
+include = ["src"]
+
+[tool.dockg]
+# Exclude directories from the knowledge graph by default.
+exclude = [".dockg", ".codekg", "src", ".git", ".venv", "venv", "__pycache__",
+".mypy_cache", ".pytest_cache", "bundles", "dist"]

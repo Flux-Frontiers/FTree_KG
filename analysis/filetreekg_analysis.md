@@ -1,13 +1,13 @@
 # FileTreeKG Analysis
 
-**Nodes:** 36
-**Edges:** 36
+**Nodes:** 545
+**Edges:** 545
 
 ## Node breakdown
 
-- `directory`: 6
-- `file`: 30
+- `directory`: 185
+- `file`: 360
 
 ## Edge breakdown
 
-- `CONTAINS`: 36
+- `CONTAINS`: 545

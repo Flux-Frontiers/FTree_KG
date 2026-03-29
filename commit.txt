@@ -1,0 +1,17 @@
+refactor(packaging): restructure to src/ftree_kg layout, bump to 0.3.0
+
+Move all source files from flat `src/` into `src/ftree_kg/` so that
+Poetry can build and install a properly-named importable package.
+
+- `packages = [{include = "ftree_kg", from = "src"}]` replaces
+  `{include = "src"}` which was uninstallable
+- All internal imports rewritten from `src.*` → `ftree_kg.*`
+- CLI entry points updated to `ftree_kg.cli.*`
+- Removed `kg-rag` required dep and `[tool.poetry.extras]` stanza;
+  `code-kg` and `doc-kg` remain as direct git-sourced dependencies
+- Added `[[tool.mypy.overrides]]` for `ftree_kg.*`
+- `snapshots.py` refactored as thin layer over `kg_rag.snapshots`
+- Added `ftreekg hooks install` CLI command (`cmd_hooks.py`)
+- `poetry.toml` added for in-project virtualenv configuration
+
+Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>

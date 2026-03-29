@@ -8,8 +8,8 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from code_kg.module import NodeSpec, EdgeSpec  # type: ignore[import-untyped]
-from src.extractor import FileTreeKGExtractor
+from code_kg.module import NodeSpec, EdgeSpec
+from ftree_kg.extractor import FileTreeKGExtractor
 
 
 @pytest.fixture

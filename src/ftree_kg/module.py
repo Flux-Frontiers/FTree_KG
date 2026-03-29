@@ -8,10 +8,10 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from code_kg.module import KGModule  # type: ignore[import-untyped]
+from code_kg.module import KGModule
 
-from src.config import load_exclude_dirs, load_include_dirs
-from src.extractor import FileTreeKGExtractor
+from ftree_kg.config import load_exclude_dirs, load_include_dirs
+from ftree_kg.extractor import FileTreeKGExtractor
 
 
 class FileTreeKG(KGModule):  # type: ignore[misc]
@@ -85,7 +85,7 @@ class FileTreeKG(KGModule):  # type: ignore[misc]
         :param max_nodes: Max nodes in pack.
         :return: SnippetPack with metadata in nodes field.
         """
-        from code_kg.module.types import SnippetPack  # type: ignore[import-untyped]
+        from code_kg.module.types import SnippetPack
 
         qresult = self.query(q, k=k)
 

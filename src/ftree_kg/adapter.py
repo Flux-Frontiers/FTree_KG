@@ -7,15 +7,15 @@ from __future__ import annotations
 
 from typing import Any
 
-from kg_rag.adapters.base import KGAdapter  # type: ignore[import-untyped]
-from kg_rag.primitives import (  # type: ignore[import-untyped]
+from kg_rag.adapters.base import KGAdapter
+from kg_rag.primitives import (
     CrossHit,
     CrossSnippet,
     KGEntry,
     KGKind,
 )
 
-from src.module import FileTreeKG
+from ftree_kg.module import FileTreeKG
 
 
 class FileTreeKGAdapter(KGAdapter):  # type: ignore[misc]

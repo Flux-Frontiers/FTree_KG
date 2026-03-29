@@ -11,9 +11,9 @@ from pathlib import Path
 from stat import filemode
 from typing import Any
 
-from code_kg.module import EdgeSpec, KGExtractor, NodeSpec  # type: ignore[import-untyped]
+from code_kg.module import EdgeSpec, KGExtractor, NodeSpec
 
-from src.config import DEFAULT_SKIP_DIRS, load_exclude_dirs, load_include_dirs
+from ftree_kg.config import DEFAULT_SKIP_DIRS, load_exclude_dirs, load_include_dirs
 
 
 class FileTreeKGExtractor(KGExtractor):  # type: ignore[misc]

@@ -1,0 +1,120 @@
+"""
+cmd_hooks.py
+
+CLI command for installing FTreeKG git hooks:
+
+  install-hooks — install the pre-commit snapshot hook into .git/hooks/
+
+  Author: Eric G. Suchanek, PhD
+  Last Revision: 2026-03-18
+"""
+
+from __future__ import annotations
+
+import stat
+from pathlib import Path
+
+import click
+
+from ftree_kg.cli.group import cli
+
+# ---------------------------------------------------------------------------
+# Hook script content (embedded so this module is self-contained when
+# installed as a package in any repo, not just FTreeKG itself)
+# ---------------------------------------------------------------------------
+
+_PRE_COMMIT_HOOK = """\
+#!/usr/bin/env bash
+# FTreeKG pre-commit hook — keeps local index in sync and captures metrics
+# snapshots BEFORE quality checks run.
+# Installed by: ftreekg install-hooks
+# Skip with: FTREEKG_SKIP_SNAPSHOT=1 git commit ...
+set -euo pipefail
+
+[ "${FTREEKG_SKIP_SNAPSHOT:-0}" = "1" ] && exit 0
+
+REPO_ROOT="$(git rev-parse --show-toplevel)"
+
+cd "$REPO_ROOT"
+
+# Capture the tree hash of the staged index NOW — before any tool modifies files.
+TREE_HASH=$(git write-tree)
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Rebuild local FTreeKG index to keep it in sync with staged content.
+"$REPO_ROOT/.venv/bin/ftreekg" build --repo "$REPO_ROOT" --wipe || exit 1
+
+# Snapshot FTreeKG (version auto-detected from installed package).
+"$REPO_ROOT/.venv/bin/ftreekg" snapshot save \\
+    --repo . \\
+    --tree-hash "$TREE_HASH" \\
+    --branch "$BRANCH" \\
+  || { echo "[ftreekg] snapshot skipped (run 'ftreekg build' to initialize)" >&2; }
+
+# Stage snapshot directory so it is included in the commit.
+git add .filetreekg/snapshots/ 2>/dev/null || true
+
+# Run pre-commit framework checks (ruff, mypy, detect-secrets, etc.) AFTER
+# snapshots are captured and staged. Delegates to .pre-commit-config.yaml so
+# quality checks stay in one place.
+PRECOMMIT="$REPO_ROOT/.venv/bin/pre-commit"
+if [ -x "$PRECOMMIT" ]; then
+    "$PRECOMMIT" run || exit 1
+elif command -v pre-commit &>/dev/null; then
+    pre-commit run || exit 1
+fi
+
+exit 0
+"""
+
+
+@cli.command("install-hooks")
+@click.option(
+    "--repo",
+    default=".",
+    type=click.Path(exists=True),
+    show_default=True,
+    help="Repository root.",
+)
+@click.option(
+    "--force",
+    is_flag=True,
+    help="Overwrite an existing pre-commit hook.",
+)
+def install_hooks(repo: str, force: bool) -> None:
+    """Install the FTreeKG pre-commit git hook.
+
+    After installation, before each commit:
+      1. Rebuilds local FTreeKG index (--wipe)
+      2. Captures a metrics snapshot keyed by git tree hash
+      3. Stages .filetreekg/snapshots/ atomically
+      4. Runs pre-commit framework checks (ruff, mypy, etc.)
+
+    Skip with: FTREEKG_SKIP_SNAPSHOT=1 git commit ...
+
+    Example:
+        ftreekg install-hooks --repo .
+    """
+    repo_root = Path(repo).resolve()
+    git_dir = repo_root / ".git"
+
+    if not git_dir.is_dir():
+        click.echo(f"Error: {repo_root} is not a git repository.", err=True)
+        raise SystemExit(1)
+
+    hooks_dir = git_dir / "hooks"
+    hooks_dir.mkdir(exist_ok=True)
+    hook_path = hooks_dir / "pre-commit"
+
+    if hook_path.exists() and not force:
+        click.echo(f"Hook already exists: {hook_path}")
+        click.echo("Use --force to overwrite.")
+        raise SystemExit(1)
+
+    hook_path.write_text(_PRE_COMMIT_HOOK)
+    mode = hook_path.stat().st_mode | stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH
+    hook_path.chmod(mode)
+
+    click.echo(f"OK Installed pre-commit hook: {hook_path}")
+    click.echo("  Snapshots will be captured automatically before each commit.")
+    click.echo("  Run 'ftreekg build' first if you haven't built the graph yet.")
