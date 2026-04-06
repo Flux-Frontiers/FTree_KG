@@ -37,8 +37,8 @@ def analyze(
     Reports include node/edge counts, breakdown by kind, and structural metrics.
     """
     repo_root = Path(repo).resolve()
-    db_path = Path(db)
-    lancedb_path = Path(lancedb)
+    db_path = Path(db) if db else repo_root / ".filetreekg" / "graph.sqlite"
+    lancedb_path = Path(lancedb) if lancedb else repo_root / ".filetreekg" / "lancedb"
 
     try:
         kg = FileTreeKG(

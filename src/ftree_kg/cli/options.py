@@ -22,18 +22,18 @@ repo_option = click.option(
 
 db_option = click.option(
     "--db",
-    default=".filetreekg/graph.sqlite",
+    default=None,
     type=click.Path(),
-    show_default=True,
-    help="SQLite database path.",
+    show_default=False,
+    help="SQLite database path (default: <repo>/.filetreekg/graph.sqlite).",
 )
 
 lancedb_option = click.option(
     "--lancedb",
-    default=".filetreekg/lancedb",
+    default=None,
     type=click.Path(),
-    show_default=True,
-    help="LanceDB directory path.",
+    show_default=False,
+    help="LanceDB directory path (default: <repo>/.filetreekg/lancedb).",
 )
 
 model_option = click.option(

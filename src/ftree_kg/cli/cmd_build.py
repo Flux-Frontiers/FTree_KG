@@ -50,8 +50,8 @@ def build(
     CLI options override pyproject.toml settings.
     """
     repo_root = Path(repo).resolve()
-    db_path = Path(db)
-    lancedb_path = Path(lancedb)
+    db_path = Path(db) if db else repo_root / ".filetreekg" / "graph.sqlite"
+    lancedb_path = Path(lancedb) if lancedb else repo_root / ".filetreekg" / "lancedb"
 
     # Merge CLI options with pyproject.toml config
     include_dirs = set(include_dir) or load_include_dirs(repo_root)

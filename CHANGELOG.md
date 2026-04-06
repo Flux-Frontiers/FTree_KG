@@ -7,13 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-06
+
 ### Added
+- `poetry.toml` — in-project virtualenv configuration (`in-project = true`)
+- `.gitignore`: added `.pycodekg/` entry to exclude the pycodekg index from version control (alongside existing `.codekg/`, `.dockg/`, `.filetreekg/` entries)
 
 ### Changed
+- Migrated `pyproject.toml` from `[tool.poetry]` to PEP 621 `[project]` table; `kg-snapshot` is now a required runtime dependency (git source)
+- `--db` and `--lancedb` CLI options now default to `None`; each command resolves the path relative to `--repo` at runtime, so `ftreekg build --repo /path/to/repo` no longer requires explicit db/lancedb flags
+- `pyproject.toml` formatting: aligned tool config tables, added section comments, reformatted multi-value lists for readability
+- `follow_untyped_imports = true` added to `[[tool.mypy.overrides]]` for `kg_snapshot.*` so mypy follows the imported types rather than silently treating them as `Any`
+- Version bumped to `0.4.1` in `pyproject.toml` and `src/ftree_kg/__init__.py`
 
 ### Fixed
-
-### Removed
+- `adapter.py`: `FileTreeKGAdapter.stats()` was accessing `.node_count` / `.edge_count` as attributes on the `dict` returned by `kg.stats()` — now uses `s.get("total_nodes", 0)` / `s.get("total_edges", 0)` (runtime `AttributeError` at every stats call)
+- `snapshots.py`: `FtreeSnapshotManager.save_snapshot()` was missing the `force` keyword argument present in the base class — callers passing `force=True` would get a `TypeError`; return type corrected to `Path | None`
+- `snapshots.py`: `FtreeSnapshotManager.capture()` parameter order corrected to match base class (`graph_stats_dict` positional, `stats_dict` keyword-only); `hotspots` and `issues` params added and forwarded to `super()`
+- `snapshots.py`: `diff_snapshots()` now uses `cast(SnapshotMetrics, snap.metrics)` before passing to `metrics_to_dict()` to satisfy mypy after `follow_untyped_imports` was enabled
+- `extractor.py`, `module.py`, `snapshots.py`: removed stale `# type: ignore[misc]` comments on class definitions — no longer needed now that pycode_kg/kg_snapshot types are fully resolved
+- `module.py`: `FileTreeKG.pack()` override annotated with `# type: ignore[override]` — intentionally uses a different (filesystem-appropriate) interface
+- `cmd_snapshot.py`, `test_query.py`: added `cast(SnapshotMetrics, ...)` / `cast(SnapshotDelta, ...)` at attribute-access sites to satisfy mypy; `saved.exists()` guard updated to handle `Path | None`
 
 ## [0.4.0] - 2026-03-29
 

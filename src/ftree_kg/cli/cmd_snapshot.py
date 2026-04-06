@@ -15,10 +15,12 @@ from pathlib import Path
 
 import click
 
+from typing import cast
+
 from ftree_kg.cli.group import cli
 from ftree_kg.cli.options import db_option, lancedb_option, repo_option
 from ftree_kg.module import FileTreeKG
-from ftree_kg.snapshots import SnapshotManager
+from ftree_kg.snapshots import SnapshotDelta, SnapshotManager, SnapshotMetrics
 
 
 @cli.group("snapshot")
@@ -71,8 +73,8 @@ def save_snapshot(
         ftreekg snapshot save 0.1.0 --repo .
     """
     repo_root = Path(repo).resolve()
-    db_path = Path(db)
-    lancedb_path = Path(lancedb)
+    db_path = Path(db) if db else repo_root / ".filetreekg" / "graph.sqlite"
+    lancedb_path = Path(lancedb) if lancedb else repo_root / ".filetreekg" / "lancedb"
     snapshots_path = (
         Path(snapshots_dir).resolve() if snapshots_dir else repo_root / ".filetreekg" / "snapshots"
     )
@@ -92,13 +94,14 @@ def save_snapshot(
     )
 
     snapshot_file = snap_mgr.save_snapshot(snapshot_obj)
-    click.echo(f"OK Snapshot saved: {snapshot_file}")
+    click.echo(f"OK Snapshot saved: {snapshot_file or '(skipped, unchanged)'}")
     click.echo(f"  Key:     {snapshot_obj.key}")
     click.echo(f"  Version: {snapshot_obj.version}")
-    click.echo(f"  Nodes:   {snapshot_obj.metrics.total_nodes}")
-    click.echo(f"  Edges:   {snapshot_obj.metrics.total_edges}")
-    click.echo(f"  Files:   {snapshot_obj.metrics.total_files}")
-    click.echo(f"  Dirs:    {snapshot_obj.metrics.total_dirs}")
+    m = cast(SnapshotMetrics, snapshot_obj.metrics)
+    click.echo(f"  Nodes:   {m.total_nodes}")
+    click.echo(f"  Edges:   {m.total_edges}")
+    click.echo(f"  Files:   {m.total_files}")
+    click.echo(f"  Dirs:    {m.total_dirs}")
 
 
 @snapshot.command("list")
@@ -186,36 +189,37 @@ def show_snapshot(key: str, snapshots_dir: str | None) -> None:
     click.echo(f"Version:   {snap.version}")
     click.echo()
 
+    m = cast(SnapshotMetrics, snap.metrics)
     click.echo("Metrics:")
-    click.echo(f"  Total Nodes:  {snap.metrics.total_nodes}")
-    click.echo(f"  Total Edges:  {snap.metrics.total_edges}")
-    click.echo(f"  Files:        {snap.metrics.total_files}")
-    click.echo(f"  Directories:  {snap.metrics.total_dirs}")
+    click.echo(f"  Total Nodes:  {m.total_nodes}")
+    click.echo(f"  Total Edges:  {m.total_edges}")
+    click.echo(f"  Files:        {m.total_files}")
+    click.echo(f"  Directories:  {m.total_dirs}")
     click.echo()
 
-    if snap.metrics.node_counts:
+    if m.node_counts:
         click.echo("Node Breakdown:")
-        for kind, count in sorted(snap.metrics.node_counts.items()):
+        for kind, count in sorted(m.node_counts.items()):
             click.echo(f"  {kind}: {count}")
         click.echo()
 
-    if snap.metrics.edge_counts:
+    if m.edge_counts:
         click.echo("Edge Breakdown:")
-        for rel, count in sorted(snap.metrics.edge_counts.items()):
+        for rel, count in sorted(m.edge_counts.items()):
             click.echo(f"  {rel}: {count}")
         click.echo()
 
-    if snap.metrics.dir_node_counts:
+    if m.dir_node_counts:
         click.echo("Top-Level Directory Breakdown:")
-        for dir_name, count in sorted(
-            snap.metrics.dir_node_counts.items(), key=lambda x: x[1], reverse=True
-        )[:10]:
+        for dir_name, count in sorted(m.dir_node_counts.items(), key=lambda x: x[1], reverse=True)[
+            :10
+        ]:
             click.echo(f"  {dir_name}: {count}")
         click.echo()
 
     if snap.vs_previous:
         click.echo("Delta vs. Previous:")
-        d = snap.vs_previous
+        d = cast(SnapshotDelta, snap.vs_previous)
         click.echo(f"  Nodes:  {d.nodes:+d}")
         click.echo(f"  Edges:  {d.edges:+d}")
         click.echo(f"  Files:  {d.files_delta:+d}")
@@ -224,7 +228,7 @@ def show_snapshot(key: str, snapshots_dir: str | None) -> None:
 
     if snap.vs_baseline:
         click.echo("Delta vs. Baseline:")
-        d = snap.vs_baseline
+        d = cast(SnapshotDelta, snap.vs_baseline)
         click.echo(f"  Nodes:  {d.nodes:+d}")
         click.echo(f"  Edges:  {d.edges:+d}")
         click.echo(f"  Files:  {d.files_delta:+d}")

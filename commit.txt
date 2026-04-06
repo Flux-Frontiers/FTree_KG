@@ -1,17 +1,24 @@
-refactor(packaging): restructure to src/ftree_kg layout, bump to 0.3.0
+fix(types): fix runtime attr bugs, align base signatures, clean mypy
 
-Move all source files from flat `src/` into `src/ftree_kg/` so that
-Poetry can build and install a properly-named importable package.
+Fixes three runtime bugs uncovered by enabling follow_untyped_imports:
 
-- `packages = [{include = "ftree_kg", from = "src"}]` replaces
-  `{include = "src"}` which was uninstallable
-- All internal imports rewritten from `src.*` → `ftree_kg.*`
-- CLI entry points updated to `ftree_kg.cli.*`
-- Removed `kg-rag` required dep and `[tool.poetry.extras]` stanza;
-  `code-kg` and `doc-kg` remain as direct git-sourced dependencies
-- Added `[[tool.mypy.overrides]]` for `ftree_kg.*`
-- `snapshots.py` refactored as thin layer over `kg_rag.snapshots`
-- Added `ftreekg hooks install` CLI command (`cmd_hooks.py`)
-- `poetry.toml` added for in-project virtualenv configuration
+- adapter.py: stats() accessed .node_count/.edge_count on a dict returned
+  by kg.stats(); correct keys are "total_nodes"/"total_edges"
+- snapshots.py: save_snapshot() dropped the `force` kwarg from the base
+  class (TypeError if caller used force=True); return type was Path but
+  base returns Path | None
+- snapshots.py: capture() had stats_dict positional and graph_stats_dict
+  keyword-only — opposite of the base class; corrected order and added
+  hotspots/issues params forwarded to super()
+
+Also:
+- Migrated pyproject.toml from [tool.poetry] to PEP 621 [project] table;
+  kg-snapshot added as required runtime dep (replaces optional kg_rag)
+- CLI --db/--lancedb options default to None; resolved relative to --repo
+  at runtime so single-flag invocations work correctly
+- follow_untyped_imports = true in mypy overrides for kg_snapshot.*
+- Removed stale # type: ignore[misc] on class defs; added cast() at
+  attribute-access sites in cmd_snapshot.py and test_query.py
+- Bumped version to 0.4.1
 
 Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>

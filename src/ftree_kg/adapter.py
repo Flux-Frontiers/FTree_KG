@@ -110,8 +110,8 @@ class FileTreeKGAdapter(KGAdapter):  # type: ignore[misc]
             s = self._kg.stats()
             return {
                 "kind": "meta",
-                "node_count": s.node_count,
-                "edge_count": s.edge_count,
+                "node_count": s.get("total_nodes", 0),
+                "edge_count": s.get("total_edges", 0),
             }
         except Exception:  # pylint: disable=broad-exception-caught
             return {"kind": "meta", "error": "stats unavailable"}

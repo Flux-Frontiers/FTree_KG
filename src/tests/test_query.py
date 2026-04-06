@@ -8,7 +8,10 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
+from typing import cast
+
 from ftree_kg.module import FileTreeKG
+from ftree_kg.snapshots import SnapshotMetrics
 
 
 @pytest.fixture
@@ -76,17 +79,19 @@ def test_snapshot_round_trip(kg: FileTreeKG, tmp_path: Path) -> None:
     snap = mgr.capture(version="0.0.0-test", branch="test", stats_dict=stats)
     saved = mgr.save_snapshot(snap)
 
-    assert saved.exists(), "snapshot file must be written"
-    assert snap.metrics.total_nodes > 0
-    assert snap.metrics.total_files >= 0
-    assert snap.metrics.total_dirs >= 0
+    assert saved is not None and saved.exists(), "snapshot file must be written"
+    m = cast(SnapshotMetrics, snap.metrics)
+    assert m.total_nodes > 0
+    assert m.total_files >= 0
+    assert m.total_dirs >= 0
     assert snap.key != "", "snapshot must have a tree hash key"
 
     # Round-trip: load back and verify
     loaded = mgr.load_snapshot(snap.key)
     assert loaded is not None
-    assert loaded.metrics.total_nodes == snap.metrics.total_nodes
-    assert loaded.metrics.total_edges == snap.metrics.total_edges
+    lm = cast(SnapshotMetrics, loaded.metrics)
+    assert lm.total_nodes == m.total_nodes
+    assert lm.total_edges == m.total_edges
 
     # 'latest' convenience key works
     latest = mgr.load_snapshot("latest")

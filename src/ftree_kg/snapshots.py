@@ -33,21 +33,13 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 # ---------------------------------------------------------------------------
 # Re-export shared models for backwards compatibility
 # ---------------------------------------------------------------------------
-try:
-    from kg_rag.snapshots import Snapshot, SnapshotManifest
-    from kg_rag.snapshots import SnapshotManager as _BaseSnapshotManager
-
-    _KG_RAG_AVAILABLE = True
-except ImportError:  # kg_rag not installed (optional dep)
-    _KG_RAG_AVAILABLE = False
-    Snapshot = None
-    SnapshotManifest = None
-    _BaseSnapshotManager = object
+from kg_snapshot.snapshots import Snapshot, SnapshotManifest
+from kg_snapshot.snapshots import SnapshotManager as _BaseSnapshotManager
 
 __all__ = [
     "Snapshot",
@@ -164,11 +156,11 @@ def _hydrate_snapshot(snap: Snapshot) -> Snapshot:
     Returns the same Snapshot object for convenience.
     """
     if isinstance(snap.metrics, dict):
-        snap.metrics = metrics_from_dict(snap.metrics)
+        snap.metrics = metrics_from_dict(snap.metrics)  # type: ignore[assignment]
     if isinstance(snap.vs_previous, dict):
-        snap.vs_previous = delta_from_dict(snap.vs_previous)
+        snap.vs_previous = delta_from_dict(snap.vs_previous)  # type: ignore[assignment]
     if isinstance(snap.vs_baseline, dict):
-        snap.vs_baseline = delta_from_dict(snap.vs_baseline)
+        snap.vs_baseline = delta_from_dict(snap.vs_baseline)  # type: ignore[assignment]
     return snap
 
 
@@ -177,7 +169,7 @@ def _hydrate_snapshot(snap: Snapshot) -> Snapshot:
 # ---------------------------------------------------------------------------
 
 
-class FtreeSnapshotManager(_BaseSnapshotManager):  # type: ignore[misc]
+class FtreeSnapshotManager(_BaseSnapshotManager):
     """FileTreeKG snapshot manager.
 
     Extends the shared SnapshotManager with:
@@ -228,10 +220,12 @@ class FtreeSnapshotManager(_BaseSnapshotManager):  # type: ignore[misc]
         self,
         version: str | None = None,
         branch: str | None = None,
-        stats_dict: dict[str, Any] | None = None,
-        tree_hash: str = "",
-        *,
         graph_stats_dict: dict[str, Any] | None = None,
+        tree_hash: str = "",
+        hotspots: list[dict[str, Any]] | None = None,
+        issues: list[str] | None = None,
+        *,
+        stats_dict: dict[str, Any] | None = None,
         **kwargs: Any,
     ) -> Snapshot:
         """Capture a snapshot.
@@ -261,6 +255,8 @@ class FtreeSnapshotManager(_BaseSnapshotManager):  # type: ignore[misc]
                 "dir_node_counts": dir_node_counts,
             },
             tree_hash=tree_hash,
+            hotspots=hotspots,
+            issues=issues,
             **kwargs,
         )
         return _hydrate_snapshot(snap)
@@ -335,8 +331,8 @@ class FtreeSnapshotManager(_BaseSnapshotManager):  # type: ignore[misc]
             return {"error": "One or both snapshots not found"}
 
         # snap.metrics is a SnapshotMetrics dataclass after _hydrate_snapshot.
-        m_a = metrics_to_dict(snap_a.metrics)
-        m_b = metrics_to_dict(snap_b.metrics)
+        m_a = metrics_to_dict(cast(SnapshotMetrics, snap_a.metrics))
+        m_b = metrics_to_dict(cast(SnapshotMetrics, snap_b.metrics))
 
         all_node_kinds = set(m_a.get("node_counts", {})) | set(m_b.get("node_counts", {}))
         all_edge_rels = set(m_a.get("edge_counts", {})) | set(m_b.get("edge_counts", {}))
@@ -372,7 +368,7 @@ class FtreeSnapshotManager(_BaseSnapshotManager):  # type: ignore[misc]
     # save_snapshot — serialize domain dataclasses back to dicts
     # ------------------------------------------------------------------
 
-    def save_snapshot(self, snapshot: Snapshot) -> Path:
+    def save_snapshot(self, snapshot: Snapshot, *, force: bool = False) -> Path | None:
         """Save snapshot; converts domain dataclass fields to dicts first."""
         # The base class expects metrics and vs_* to be dicts.  If they have
         # been hydrated to domain dataclasses, convert them back before saving.
@@ -383,7 +379,7 @@ class FtreeSnapshotManager(_BaseSnapshotManager):  # type: ignore[misc]
         if isinstance(snapshot.vs_baseline, SnapshotDelta):
             snapshot.vs_baseline = delta_to_dict(snapshot.vs_baseline)
 
-        path: Path = super().save_snapshot(snapshot)
+        path = super().save_snapshot(snapshot, force=force)
 
         # Re-hydrate after saving so the caller still has attribute access.
         _hydrate_snapshot(snapshot)

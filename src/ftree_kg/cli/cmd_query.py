@@ -37,8 +37,8 @@ def query(
     Returns the top-k matching nodes with their scores and metadata.
     """
     repo_root = Path(repo).resolve()
-    db_path = Path(db)
-    lancedb_path = Path(lancedb)
+    db_path = Path(db) if db else repo_root / ".filetreekg" / "graph.sqlite"
+    lancedb_path = Path(lancedb) if lancedb else repo_root / ".filetreekg" / "lancedb"
 
     try:
         kg = FileTreeKG(
@@ -89,8 +89,8 @@ def pack(
     Returns metadata (size, timestamps, permissions) for matching nodes.
     """
     repo_root = Path(repo).resolve()
-    db_path = Path(db)
-    lancedb_path = Path(lancedb)
+    db_path = Path(db) if db else repo_root / ".filetreekg" / "graph.sqlite"
+    lancedb_path = Path(lancedb) if lancedb else repo_root / ".filetreekg" / "lancedb"
 
     try:
         kg = FileTreeKG(
