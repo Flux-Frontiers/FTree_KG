@@ -8,7 +8,7 @@ from __future__ import annotations
 import pytest
 from pathlib import Path
 
-from pycode_kg.module import NodeSpec, EdgeSpec
+from ftree_kg.types import NodeSpec, EdgeSpec
 from ftree_kg.extractor import FileTreeKGExtractor
 
 
