@@ -1,0 +1,29 @@
+{
+  "key": "eacdb0c32db9985c8b9456a385eb85fb012a9def",
+  "branch": "main",
+  "timestamp": "2026-03-21T01:16:29.487905+00:00",
+  "version": "v0.2.0",
+  "metrics": {
+    "total_nodes": 545,
+    "total_edges": 545,
+    "node_counts": {
+      "directory": 185,
+      "file": 360
+    },
+    "edge_counts": {
+      "CONTAINS": 545
+    },
+    "total_files": 360,
+    "total_dirs": 185,
+    "dir_node_counts": {}
+  },
+  "hotspots": [],
+  "issues": [],
+  "vs_previous": null,
+  "vs_baseline": {
+    "nodes": 4,
+    "edges": 4,
+    "files_delta": 4,
+    "dirs_delta": 0
+  }
+}

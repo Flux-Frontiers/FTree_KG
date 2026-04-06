@@ -31,7 +31,9 @@ from ftree_kg.module import FileTreeKG
 @model_option
 @include_option
 @exclude_option
-@click.option("--wipe", is_flag=True, help="Delete existing graph first.")
+@click.option(
+    "--no-wipe", is_flag=True, default=False, help="Keep existing graph instead of rebuilding."
+)
 def build(
     repo: str,
     db: str,
@@ -39,7 +41,7 @@ def build(
     model: str,
     include_dir: tuple[str, ...],
     exclude_dir: tuple[str, ...],
-    wipe: bool,
+    no_wipe: bool,
 ) -> None:
     """Extract a filesystem tree knowledge graph and build indices.
 
@@ -58,8 +60,8 @@ def build(
     exclude_dirs = set(exclude_dir) or load_exclude_dirs(repo_root)
 
     click.echo(f"🌳 Building FileTreeKG for {repo_root}")
-    if wipe:
-        click.echo("  Wiping existing indices...")
+    if no_wipe:
+        click.echo("  Keeping existing indices (--no-wipe)...")
     if include_dirs:
         click.echo(f"  Including: {', '.join(sorted(include_dirs))}")
     if exclude_dirs:
@@ -71,7 +73,7 @@ def build(
             db_path=db_path,
             lancedb_path=lancedb_path,
         )
-        kg.build(wipe=wipe)
+        kg.build(wipe=not no_wipe)
         stats = kg.stats()
 
         click.echo("✅ Build complete")

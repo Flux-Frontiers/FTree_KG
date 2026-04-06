@@ -1,0 +1,117 @@
+{
+  "key": "540f6b313c71d4409140c4167c0b8e04666be50f",
+  "branch": "main",
+  "timestamp": "2026-03-15T04:46:19.868445+00:00",
+  "version": "0.1.0",
+  "metrics": {
+    "total_nodes": 268,
+    "total_edges": 777,
+    "meaningful_nodes": 264,
+    "coverage_score": 0.8518518518518517,
+    "node_counts": {
+      "chunk": 45,
+      "document": 4,
+      "entity": 52,
+      "keyword": 86,
+      "section": 44,
+      "topic": 37
+    },
+    "edge_counts": {
+      "CONTAINS": 89,
+      "CO_OCCURS_WITH": 410,
+      "HAS_KEYWORD": 145,
+      "HAS_TOPIC": 47,
+      "MENTIONS_ENTITY": 74,
+      "NEXT": 1,
+      "REFERENCES": 1,
+      "SIMILAR_TO": 10
+    },
+    "issues_count": 0,
+    "complexity_median": 9.0
+  },
+  "hotspots": [
+    {
+      "id": "chunk:docs/README.md:0013",
+      "file_path": "docs/README.md",
+      "label": "Project Structure",
+      "references": 0,
+      "semantic_links": 15,
+      "total_links": 15
+    },
+    {
+      "id": "chunk:README.md:0001",
+      "file_path": "README.md",
+      "label": "Features",
+      "references": 0,
+      "semantic_links": 13,
+      "total_links": 13
+    },
+    {
+      "id": "chunk:CHANGELOG.md:0001",
+      "file_path": "CHANGELOG.md",
+      "label": "Added",
+      "references": 0,
+      "semantic_links": 12,
+      "total_links": 13
+    },
+    {
+      "id": "chunk:CONTRIBUTING.md:0002",
+      "file_path": "CONTRIBUTING.md",
+      "label": "Code Style",
+      "references": 0,
+      "semantic_links": 10,
+      "total_links": 10
+    },
+    {
+      "id": "chunk:CHANGELOG.md:0000",
+      "file_path": "CHANGELOG.md",
+      "label": "Changelog",
+      "references": 0,
+      "semantic_links": 9,
+      "total_links": 9
+    },
+    {
+      "id": "chunk:CONTRIBUTING.md:0009",
+      "file_path": "CONTRIBUTING.md",
+      "label": "Commit Message Format",
+      "references": 0,
+      "semantic_links": 9,
+      "total_links": 9
+    },
+    {
+      "id": "chunk:docs/README.md:0001",
+      "file_path": "docs/README.md",
+      "label": "Node Types",
+      "references": 0,
+      "semantic_links": 9,
+      "total_links": 9
+    },
+    {
+      "id": "chunk:docs/README.md:0011",
+      "file_path": "docs/README.md",
+      "label": "Integration with KGRAG",
+      "references": 0,
+      "semantic_links": 9,
+      "total_links": 9
+    },
+    {
+      "id": "chunk:docs/README.md:0014",
+      "file_path": "docs/README.md",
+      "label": "Development",
+      "references": 1,
+      "semantic_links": 8,
+      "total_links": 9
+    },
+    {
+      "id": "chunk:CONTRIBUTING.md:0008",
+      "file_path": "CONTRIBUTING.md",
+      "label": "Test Requirements",
+      "references": 0,
+      "semantic_links": 8,
+      "total_links": 8
+    }
+  ],
+  "issues": [],
+  "vs_previous": null,
+  "vs_baseline": null
+}

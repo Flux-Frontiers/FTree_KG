@@ -125,8 +125,20 @@ dmypy.json
 *.swo
 *~
 
-# KGModule indices
-.filetreekg/
-.codekg/
-.pycodekg/
-.dockg/
+# KGModule indices — exclude DBs/vectors, keep snapshots/
+.filetreekg/lancedb/
+.filetreekg/lancedb-*
+.filetreekg/graph.sqlite
+.filetreekg/graph.sqlite*
+.pycodekg/lancedb/
+.pycodekg/lancedb-*
+.pycodekg/graph.sqlite
+.pycodekg/graph.sqlite*
+.dockg/lancedb/
+.dockg/lancedb-*
+.dockg/graph.sqlite
+.dockg/graph.sqlite*
+.agentkg/lancedb/
+.agentkg/lancedb-*
+.agentkg/graph.sqlite
+.agentkg/graph.sqlite*

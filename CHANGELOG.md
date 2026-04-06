@@ -7,10 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-04-06
+
 ### Added
 - `FileTreeKG.build()` — SQLite-backed graph build pipeline using the extractor; creates `nodes` and `edges` tables, wipes on request
 - `FileTreeKG.query()` — text-match query over qualname, kind, and docstring; returns `kg_utils.types.QueryResult`
 - `FileTreeKG.stats()` — SQLite aggregation returning `total_nodes`, `total_edges`, `node_counts`, `edge_counts`
+- `nodes.size_bytes` column — two-pass build: pass 1 extracts nodes/edges, pass 2 re-stats each file to populate byte sizes
+- `FileTreeKG.stats()` now returns `total_size_bytes` and `size_by_top_dir` (size aggregated per top-level directory)
+- `FileTreeKG.analyze()` — richer Markdown report with summary table, ASCII bar chart of size by directory, and formatted node/edge breakdown tables
+- `.gitignore` — added `.agentkg/` exclusions (DB + vectors only; snapshots tracked); switched all KG index entries from whole-directory exclusion to fine-grained patterns that keep `snapshots/` tracked
+
+### Changed
+- `build()` default changed from `wipe=False` to `wipe=True` — rebuild is the safe default
+- `ftreekg build` CLI: `--wipe` flag replaced by `--no-wipe` (opt-out of the default rebuild)
+- `_SCHEMA` now uses `DROP TABLE IF EXISTS` + `CREATE TABLE` instead of `CREATE TABLE IF NOT EXISTS` — prevents column-mismatch errors when schema evolves
 
 ### Changed
 - `extractor.py`: replaced local-stub import (`ftree_kg.types`) with `from kg_utils.types import EdgeSpec, KGExtractor, NodeSpec`

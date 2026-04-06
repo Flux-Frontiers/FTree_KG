@@ -47,7 +47,10 @@ repos:
     rev: v1.5.0
     hooks:
       - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline', '--exclude-files', '\.codekg/snapshots/.*']
+        args: [
+          '--baseline', '.secrets.baseline',
+          '--exclude-files', '\.(filetreekg|pycodekg|dockg|agentkg|codekg)/.*',
+        ]
 
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.9.10

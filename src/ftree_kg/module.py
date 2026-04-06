@@ -16,20 +16,38 @@ from ftree_kg.config import load_exclude_dirs, load_include_dirs
 from ftree_kg.extractor import FileTreeKGExtractor
 
 _SCHEMA = """
-CREATE TABLE IF NOT EXISTS nodes (
+DROP TABLE IF EXISTS nodes;
+DROP TABLE IF EXISTS edges;
+CREATE TABLE nodes (
     node_id     TEXT PRIMARY KEY,
     kind        TEXT,
     name        TEXT,
     qualname    TEXT,
     source_path TEXT,
-    docstring   TEXT
+    docstring   TEXT,
+    size_bytes  INTEGER DEFAULT 0
 );
-CREATE TABLE IF NOT EXISTS edges (
+CREATE TABLE edges (
     source_id TEXT,
     target_id TEXT,
     relation  TEXT
 );
 """
+
+
+def _fmt_size(n: int) -> str:
+    """Human-readable byte size."""
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}" if unit != "B" else f"{n} B"
+        n //= 1024
+    return f"{n:.1f} TB"
+
+
+def _size_bar(value: int, total: int, width: int = 20) -> str:
+    """ASCII bar proportional to value/total."""
+    filled = int(width * value / total) if total else 0
+    return "█" * filled + "░" * (width - filled)
 
 
 class FileTreeKG(KGModule):
@@ -78,8 +96,11 @@ class FileTreeKG(KGModule):
         """
         return "meta"
 
-    def build(self, wipe: bool = False) -> None:
+    def build(self, wipe: bool = True) -> None:
         """Build the SQLite graph index by running the extractor.
+
+        Pass 1 — extract nodes/edges from the filesystem.
+        Pass 2 — re-stat each file node to populate size_bytes.
 
         :param wipe: If True, delete the existing database before building.
         """
@@ -89,12 +110,14 @@ class FileTreeKG(KGModule):
             self.db_path.unlink()
 
         extractor = self.make_extractor()
+
+        # Pass 1: extract nodes and edges
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(_SCHEMA)
             for spec in extractor.extract():
                 if isinstance(spec, NodeSpec):
                     conn.execute(
-                        "INSERT OR REPLACE INTO nodes VALUES (?,?,?,?,?,?)",
+                        "INSERT OR REPLACE INTO nodes VALUES (?,?,?,?,?,?,0)",
                         (
                             spec.node_id,
                             spec.kind,
@@ -111,10 +134,27 @@ class FileTreeKG(KGModule):
                     )
             conn.commit()
 
+        # Pass 2: populate size_bytes for file nodes
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT node_id, source_path FROM nodes WHERE kind = 'file'"
+            ).fetchall()
+            updates = []
+            for node_id, source_path in rows:
+                full_path = self.repo_root / source_path
+                try:
+                    size = full_path.stat().st_size
+                except OSError:
+                    size = 0
+                updates.append((size, node_id))
+            conn.executemany("UPDATE nodes SET size_bytes = ? WHERE node_id = ?", updates)
+            conn.commit()
+
     def stats(self) -> dict[str, Any]:
         """Return statistics about the knowledge graph.
 
-        :return: Dict with total_nodes, total_edges, node_counts, edge_counts.
+        :return: Dict with total_nodes, total_edges, node_counts, edge_counts,
+                 total_size_bytes, size_by_top_dir.
         """
         assert self.db_path is not None
         with sqlite3.connect(self.db_path) as conn:
@@ -126,11 +166,27 @@ class FileTreeKG(KGModule):
             edge_counts: dict[str, int] = dict(
                 conn.execute("SELECT relation, COUNT(*) FROM edges GROUP BY relation").fetchall()
             )
+            total_size: int = conn.execute(
+                "SELECT COALESCE(SUM(size_bytes), 0) FROM nodes WHERE kind = 'file'"
+            ).fetchone()[0]
+            # Size by top-level directory
+            rows = conn.execute(
+                "SELECT source_path, size_bytes FROM nodes WHERE kind = 'file'"
+            ).fetchall()
+
+        size_by_dir: dict[str, int] = {}
+        for source_path, size in rows:
+            parts = Path(source_path).parts
+            top = parts[0] if len(parts) > 1 else "."
+            size_by_dir[top] = size_by_dir.get(top, 0) + size
+
         return {
             "total_nodes": total_nodes,
             "total_edges": total_edges,
             "node_counts": node_counts,
             "edge_counts": edge_counts,
+            "total_size_bytes": total_size,
+            "size_by_top_dir": dict(sorted(size_by_dir.items(), key=lambda x: x[1], reverse=True)),
         }
 
     def query(self, q: str, k: int = 8, **kwargs: Any) -> QueryResult:
@@ -201,21 +257,61 @@ class FileTreeKG(KGModule):
         """
         try:
             s = self.stats()
+            total_size = s.get("total_size_bytes", 0)
+            size_by_dir: dict[str, int] = s.get("size_by_top_dir", {})
+            node_counts: dict[str, int] = s.get("node_counts", {})
+            edge_counts: dict[str, int] = s.get("edge_counts", {})
+
             lines = [
                 "# FileTreeKG Analysis",
                 "",
-                f"**Nodes:** {s['total_nodes']}  ",
-                f"**Edges:** {s['total_edges']}  ",
+                "## Summary",
+                "",
+                "| Metric | Value |",
+                "|--------|-------|",
+                f"| Total nodes | {s['total_nodes']:,} |",
+                f"| Total edges | {s['total_edges']:,} |",
+                f"| Files | {node_counts.get('file', 0):,} |",
+                f"| Directories | {node_counts.get('directory', 0):,} |",
+                f"| Symlinks | {node_counts.get('symlink', 0):,} |",
+                f"| Total size (files) | {_fmt_size(total_size)} |",
+                "",
+                "## Size by top-level directory",
+                "",
+            ]
+
+            if size_by_dir:
+                max_size = max(size_by_dir.values()) or 1
+                lines.append("```")
+                for top_dir, size in size_by_dir.items():
+                    size_bar = _size_bar(size, max_size)
+                    lines.append(f"{top_dir:<20} {size_bar}  {_fmt_size(size):>10}")
+                lines.append("```")
+            else:
+                lines.append("_No file size data available._")
+
+            lines += [
                 "",
                 "## Node breakdown",
                 "",
+                "| Kind | Count |",
+                "|------|-------|",
             ]
-            for kind, count in (s.get("node_counts") or {}).items():
-                lines.append(f"- `{kind}`: {count}")
-            lines += ["", "## Edge breakdown", ""]
-            for rel, count in (s.get("edge_counts") or {}).items():
-                lines.append(f"- `{rel}`: {count}")
+            for kind, count in sorted(node_counts.items()):
+                lines.append(f"| `{kind}` | {count:,} |")
+
+            lines += [
+                "",
+                "## Edge breakdown",
+                "",
+                "| Relation | Count |",
+                "|----------|-------|",
+            ]
+            for rel, count in sorted(edge_counts.items()):
+                lines.append(f"| `{rel}` | {count:,} |")
+
             return "\n".join(lines)
+
         except Exception as exc:  # pylint: disable=broad-exception-caught
             return f"# FileTreeKG Analysis\n\nAnalysis failed: {exc}\n"
 
