@@ -134,7 +134,7 @@ disable = [
 include = ["src", "docs"]
 # exclude = ["archives", "backups"]  # additional dirs beyond DEFAULT_SKIP_DIRS
 
-[tool.codekg]
+[tool.pycodekg]
 # Directories included in the CodeKG knowledge graph build and analysis
 include = ["src"]
 
