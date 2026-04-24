@@ -1,6 +1,6 @@
 {
   "format": "1.0",
-  "last_update": "2026-04-24T19:00:33.897240+00:00",
+  "last_update": "2026-04-24T19:05:06.933964+00:00",
   "snapshots": [
     {
       "key": "540f6b313c71d4409140c4167c0b8e04666be50f",
@@ -126,11 +126,11 @@
       }
     },
     {
-      "key": "2b17ca1310f7d0f69938259f21225b94e8ac8a95",
+      "key": "7a301d8a8dc445cbf457b8bc921ca36a382b1335",
       "branch": "main",
-      "timestamp": "2026-04-24T19:00:33.896836+00:00",
+      "timestamp": "2026-04-24T19:05:06.933563+00:00",
       "version": "0.10.0",
-      "file": "2b17ca1310f7d0f69938259f21225b94e8ac8a95.json",
+      "file": "7a301d8a8dc445cbf457b8bc921ca36a382b1335.json",
       "metrics": {
         "db_path": "/Users/egs/repos/ftree_kg/.dockg/graph.sqlite",
         "total_nodes": 1836,

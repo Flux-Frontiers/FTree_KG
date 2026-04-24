@@ -2,31 +2,90 @@
 
 > Released: 2026-04-24
 
-### Added
-- `_ascii_tree()` — renders a depth-limited, child-truncated ASCII directory tree from SQLite path rows; shown in `analyze()` under "Directory tree (depth ≤ 3)"
-- `analyze()` — "Directory tree" section added after the size chart
-- `pylint` added to dev dependencies so `poetry run pylint` uses the project venv
-- `ftreekg snapshot prune` CLI command — removes metric-duplicate, broken, and orphaned snapshots; supports `--dry-run`
-- `PruneResult` re-exported from `ftree_kg.snapshots` for backwards compatibility
-- `CITATION.cff` — software citation metadata for Zenodo/GitHub
-- `ftree_kg.code-workspace` — VS Code workspace file for the project
-- DOI badge added to `README.md`
+## Highlights
 
-### Changed
-- `analyze()` — terminology updated: "nodes" → "paths", "edges" → "links" throughout (summary table, section headings)
-- `README.md` — rewritten for v0.5.0: correct imports (`ftree_kg`), updated features list (paths/links, two-pass build, rich analysis), CLI examples, configuration section, link to `docs/guide.md`
-- `docs/README.md` → `docs/guide.md` — renamed to avoid confusion with root README
-- `.gitignore` — `.agentkg/` now fully excluded (local-only); `.claude/plugins/marketplaces/` excluded to prevent embedded-repo warnings
-- `pyproject.toml` — consolidated all optional dependencies into PEP 621 `[project.optional-dependencies]`: `dev`, `kgdeps`, and `all` extras; removed Poetry-specific `[tool.poetry.group.*]` sections; both `pip install -e ".[all]"` and `poetry install --all-extras` now work
-- `.vscode/settings.json` — fixed `python.testing.pytestArgs` to point at `tests/` (was `filetreekg/tests/`)
+**FTreeKG v0.6.0** brings snapshot housekeeping, a cleaner install story, richer
+analysis output, and formal software citation support via Zenodo/CITATION.cff.
 
-### Fixed
-- `_ascii_tree()` type annotations: bare `dict` → `dict[str, dict[str, Any]]` (mypy `type-arg` errors)
-- `_bar` local variable renamed to `_size_bar` / `size_bar` to satisfy pylint `disallowed-name`
+---
 
-### Removed
-- `.agentkg/snapshots/` — removed from git history; agentkg data is now local-only
-- `pyproject.toml` — removed stale `pycode_kg.*` from mypy overrides; removed Poetry group deps (now in PEP 621 extras)
+## New Features
+
+### `ftreekg snapshot prune`
+A new CLI command that removes vestigial snapshots to keep the `.filetreekg/snapshots/`
+directory lean. It handles three categories automatically:
+
+- **Metric-duplicates** — interior snapshots whose metrics are unchanged from the
+  previous entry (noise with no signal)
+- **Broken entries** — manifest entries whose JSON file is missing from disk
+- **Orphaned files** — JSON files on disk not referenced by the manifest
+
+The oldest (baseline) and newest (latest) snapshots are always preserved.
+
+```bash
+ftreekg snapshot prune --dry-run   # preview what would be removed
+ftreekg snapshot prune             # remove for real
+```
+
+### `PruneResult` re-exported
+`ftree_kg.snapshots.PruneResult` is now publicly re-exported for callers that
+inspect prune results programmatically.
+
+### ASCII directory tree in `analyze()`
+`FileTreeKG.analyze()` now renders a depth-limited, child-truncated ASCII directory
+tree (depth ≤ 3) at the end of the Markdown report, giving an at-a-glance picture
+of the indexed hierarchy.
+
+### Software citation (`CITATION.cff`)
+A `CITATION.cff` file has been added to the repo root. GitHub and Zenodo both
+recognise this format, so the preferred citation metadata is always available
+alongside the DOI.
+
+---
+
+## Improvements
+
+### Simpler installation
+`pyproject.toml` has been restructured around PEP 621 `[project.optional-dependencies]`
+instead of Poetry-specific groups. All install paths now work the same way:
+
+| Goal | Command |
+|---|---|
+| Core runtime only | `pip install -e "."` |
+| Core + dev tools | `pip install -e ".[dev]"` |
+| Core + KG integrations | `pip install -e ".[kgdeps]"` |
+| Everything | `pip install -e ".[all]"` |
+| Everything (Poetry) | `poetry install --all-extras` |
+
+### Cleaner analysis terminology
+`analyze()` now uses **paths** and **links** instead of "nodes" and "edges" throughout
+the summary table, section headings, and bar chart — language that better matches the
+filesystem domain.
+
+### VS Code test discovery fixed
+`.vscode/settings.json` now correctly points pytest at `tests/` (was `filetreekg/tests/`,
+a stale path from an earlier repo rename that prevented the VS Code test runner from
+discovering any tests).
+
+---
+
+## Bug Fixes
+
+- `_ascii_tree()` type annotations tightened: bare `dict` → `dict[str, dict[str, Any]]`
+  (resolved mypy `type-arg` errors)
+- `_bar` local variable renamed to `size_bar` to satisfy pylint `disallowed-name`
+
+---
+
+## Installation
+
+```bash
+pip install -e ".[all]"
+# or
+poetry install --all-extras
+```
+
+Requires Python 3.12 or 3.13.
 
 ---
 
