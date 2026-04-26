@@ -28,7 +28,7 @@ A [KGModule](https://github.com/Flux-Frontiers/kg_utils) for building knowledge 
 ```bash
 git clone https://github.com/flux-frontiers/FTreeKG.git
 cd FTreeKG
-poetry install --with dev
+poetry install --extras dev
 poetry shell
 ```
 
@@ -87,12 +87,11 @@ exclude = ["archives"]      # added on top of built-in skip list
 ## Development
 
 ```bash
-poetry run pytest --tb=short
-poetry run pylint src/
-poetry run mypy src/ tests/
+poetry run black src/ tests/
+poetry run ruff check --fix src/ tests/
+poetry run mypy src/
+poetry run pytest --cov=ftree_kg
 ```
-
-See [docs/guide.md](docs/guide.md) for architecture details.
 
 ## License
 
