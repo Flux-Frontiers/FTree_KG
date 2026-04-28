@@ -42,7 +42,7 @@ TREE_HASH=$(git write-tree)
 BRANCH=$(git rev-parse --abbrev-ref HEAD)
 
 # Rebuild local FTreeKG index to keep it in sync with staged content.
-"$REPO_ROOT/.venv/bin/ftreekg" build --repo "$REPO_ROOT" --wipe || exit 1
+"$REPO_ROOT/.venv/bin/ftreekg" build --repo "$REPO_ROOT" || exit 1
 
 # Snapshot FTreeKG (version auto-detected from installed package).
 "$REPO_ROOT/.venv/bin/ftreekg" snapshot save \\
@@ -85,7 +85,7 @@ def install_hooks(repo: str, force: bool) -> None:
     """Install the FTreeKG pre-commit git hook.
 
     After installation, before each commit:
-      1. Rebuilds local FTreeKG index (--wipe)
+      1. Rebuilds local FTreeKG index (full wipe-and-rebuild by default)
       2. Captures a metrics snapshot keyed by git tree hash
       3. Stages .filetreekg/snapshots/ atomically
       4. Runs pre-commit framework checks (ruff, mypy, etc.)

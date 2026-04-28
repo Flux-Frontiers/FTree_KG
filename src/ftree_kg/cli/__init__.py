@@ -11,6 +11,7 @@ The root Click group is importable from either location::
 from ftree_kg.cli import (
     cmd_analyze,  # noqa: F401  — registers analyze
     cmd_build,  # noqa: F401  — registers build
+    cmd_hooks,  # noqa: F401  — registers install-hooks
     cmd_query,  # noqa: F401  — registers query, pack
     cmd_snapshot,  # noqa: F401  — registers snapshot
 )
