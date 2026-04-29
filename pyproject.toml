@@ -7,7 +7,7 @@
 #   pip install -e ".[dev]"             core + dev tools (pytest, black, ruff, mypy)
 #   pip install -e ".[kgdeps]"          core + KG integrations (pycode-kg, doc-kg, agent-kg)
 #   pip install -e ".[all]"             everything above
-#   pip install -e "."                  core runtime only (click, kg-snapshot, kg-utils)
+#   pip install -e "."                  core runtime only (click, kg-snapshot, kgmodule-utils)
 #
 # Quick install (poetry)
 # ----------------------
@@ -61,7 +61,7 @@ requires-python = ">=3.12,<3.14"
 dependencies = [
     "click>=8.1.0,<9",
     "kg-snapshot @ git+https://github.com/Flux-Frontiers/kg_snapshot.git",
-    "kg-utils @ git+https://github.com/Flux-Frontiers/KG_utils.git",
+    "kgmodule-utils>=0.2.0",
 ]
 
 [project.optional-dependencies]
