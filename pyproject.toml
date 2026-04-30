@@ -93,6 +93,14 @@ all = [
 [project.urls]
 Repository = "https://github.com/flux-frontiers/FTreeKG"
 
+[tool.poetry.group.dev.dependencies]
+pytest     = ">=8.0.0"
+pytest-cov = ">=5.0.0"
+black      = ">=22.0"
+ruff       = ">=0.4.0"
+mypy       = ">=1.10.0"
+pylint     = ">=4.0.5"
+
 [project.scripts]
 ftreekg          = "ftree_kg.cli:cli"
 ftreekg-build    = "ftree_kg.cli.cmd_build:build"
