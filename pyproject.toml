@@ -60,6 +60,7 @@ classifiers = [
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "click>=8.1.0,<9",
+    "rich>=13.0.0",
     "kg-snapshot @ git+https://github.com/Flux-Frontiers/kg_snapshot.git",
     "kgmodule-utils>=0.2.0",
 ]
