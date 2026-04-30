@@ -103,7 +103,8 @@ class FileTreeKGExtractor(KGExtractor):
         """Traverse the source and yield NodeSpec / EdgeSpec objects.
 
         Respects [tool.filetreekg] include/exclude directives from pyproject.toml
-        in addition to DEFAULT_SKIP_DIRS.
+        in addition to DEFAULT_SKIP_DIRS.  All dotdirs (names starting with ``.'')
+        are skipped unless explicitly listed in ``include``.
 
         node_id format: '<kind>:<source_path>:<qualname>'
 
@@ -116,6 +117,10 @@ class FileTreeKGExtractor(KGExtractor):
 
             # Skip excluded directories and DEFAULT_SKIP_DIRS
             if any(part in self.exclude_dirs for part in parts):
+                continue
+
+            # Skip dotdirs unless explicitly in include_dirs
+            if any(part.startswith(".") and part not in self.include_dirs for part in parts):
                 continue
 
             # If include_dirs specified, only keep paths under those directories

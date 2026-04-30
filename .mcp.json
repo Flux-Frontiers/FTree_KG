@@ -1,18 +1,24 @@
 {
   "mcpServers": {
-    "codekg": {
-      "command": "/Users/egs/repos/FTreeKG/.venv/bin/codekg",
+    "pycodekg": {
+      "command": "poetry",
       "args": [
-        "mcp",
-        "--repo", "/Users/egs/repos/FTreeKG"
-      ]
+        "run", "pycodekg", "mcp",
+        "--repo", "/Users/egs/repos/ftree_kg"
+      ],
+      "env": {
+        "POETRY_VIRTUALENVS_IN_PROJECT": "false"
+      }
     },
     "dockg": {
-      "command": "/Users/egs/repos/FTreeKG/.venv/bin/dockg",
+      "command": "poetry",
       "args": [
-        "mcp",
-        "--repo", "/Users/egs/repos/FTreeKG"
-      ]
+        "run", "dockg-mcp",
+        "--repo", "/Users/egs/repos/ftree_kg"
+      ],
+      "env": {
+        "POETRY_VIRTUALENVS_IN_PROJECT": "false"
+      }
     }
   }
 }

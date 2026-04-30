@@ -26,7 +26,7 @@ Then activate and build indices:
 ```bash
 poetry shell
 poetry run codekg build --repo . --wipe
-poetry run dockg build --repo . --wipe
+poetry run dockg build --repo .
 ```
 
 ### Code Style
@@ -58,7 +58,7 @@ The module itself should be indexed:
 
 ```bash
 codekg build --repo . --wipe
-dockg build --repo . --wipe
+dockg build --repo .
 ```
 
 This enables semantic search over FTreeKG's own codebase.

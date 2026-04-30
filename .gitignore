@@ -131,6 +131,7 @@ dmypy.json
 .filetreekg/lancedb-*
 .filetreekg/graph.sqlite
 .filetreekg/graph.sqlite*
+
 .pycodekg/lancedb/
 .pycodekg/lancedb-*
 .pycodekg/graph.sqlite

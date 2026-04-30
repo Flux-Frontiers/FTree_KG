@@ -15,6 +15,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Removed
 
+## [0.8.0] - 2026-04-29
+
+### Added
+- `ftreekg status` command — rich-formatted live display of graph node/edge counts, total indexed size, LanceDB presence, config (include/exclude dirs), and size-by-top-directory bar chart
+- Dotdir auto-exclusion in `FileTreeKGExtractor` — directories whose names start with `.` are now skipped automatically unless explicitly listed in `include_dirs`; eliminates the need to enumerate `.git`, `.venv`, `.codekg`, `.pytest_cache`, etc. in `DEFAULT_SKIP_DIRS`
+
+### Changed
+- `DEFAULT_SKIP_DIRS` — simplified to non-dotdir names only; dotdirs now handled by the extractor's dotdir skip rule
+- `.mcp.json` — corrected: stale `codekg` entry (wrong binary, wrong-case path) replaced with `pycodekg` (`poetry run pycodekg mcp`) and `dockg` (`poetry run dockg-mcp`)
+- `.claude/commands/setup-mcp.md` — complete rewrite for FTreeKG: covers `ftreekg build`, `pycodekg build`, and `dockg build` with correct index dirs (`.filetreekg/`, `.pycodekg/`, `.dockg/`) and MCP server names
+- `.claude/commands/release.md` — update CodeKG build step to use `pycodekg build --repo .`
+- `.github/workflows/publish.yml` — add PyPI publish step using `PYPI_TOKEN` secret
+- `poetry.lock` — resolves `kgmodule-utils` from PyPI (`>=0.2.0`) instead of git
+
 ## [0.7.0] - 2026-04-26
 
 ### Added

@@ -14,6 +14,7 @@ from ftree_kg.cli import (
     cmd_hooks,  # noqa: F401  — registers install-hooks
     cmd_query,  # noqa: F401  — registers query, pack
     cmd_snapshot,  # noqa: F401  — registers snapshot
+    cmd_status,  # noqa: F401  — registers status
 )
 from ftree_kg.cli.group import cli
 

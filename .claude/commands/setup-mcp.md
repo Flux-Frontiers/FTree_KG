@@ -1,14 +1,12 @@
-# CodeKG MCP Setup & Verification
+# FTreeKG MCP Setup & Verification
 
-Set up the CodeKG MCP server for a target repository and configure it for use with Claude Code and/or Claude Desktop. Execute the following steps in sequence.
+Set up the MCP servers for the FTreeKG repository and configure them for use with Claude Code and/or Claude Desktop. FTreeKG exposes two MCP servers: **pycodekg** (code knowledge graph) and **dockg** (documentation knowledge graph). Execute the following steps in sequence.
 
 ## Command Argument Handling
 
-This command accepts an optional repository path argument:
-
 **Usage:**
 - `/setup-mcp` — Interactive mode; prompts for the target repository path
-- `/setup-mcp /path/to/repo` — Set up CodeKG MCP for the specified repository
+- `/setup-mcp /path/to/repo` — Set up MCP for the specified FTreeKG repository
 
 ---
 
@@ -16,123 +14,153 @@ This command accepts an optional repository path argument:
 
 1. If a path argument was provided, use it as `REPO_ROOT`.
 2. If no argument was provided, ask the user:
-   > "Which repository do you want to index? Please provide the absolute path."
-3. Verify the path exists and contains at least one `.py` file:
+   > "Which FTreeKG repository do you want to set up? Please provide the absolute path."
+3. Verify the path exists and contains the package source:
    ```bash
-   find "$REPO_ROOT" -name "*.py" -not -path "*/.venv/*" -not -path "*/__pycache__/*" | head -5
+   ls "$REPO_ROOT/src/ftree_kg/__init__.py"
    ```
-4. If no Python files are found, stop and report the issue.
+4. If not found, stop and report — the path may not be an FTreeKG repo.
 
-All artifact paths use the defaults relative to `REPO_ROOT`:
-- `DB_PATH` → `$REPO_ROOT/.codekg/graph.sqlite`
-- `LANCEDB_DIR` → `$REPO_ROOT/.codekg/lancedb`
-
-Do not pass `--db` or `--lancedb` flags — the commands default to `.codekg/` automatically.
+All artifact paths default relative to `REPO_ROOT`:
+- `FILETREEKG_DB` → `$REPO_ROOT/.filetreekg/graph.sqlite`
+- `FILETREEKG_LANCEDB` → `$REPO_ROOT/.filetreekg/lancedb`
+- `CODEKG_DB` → `$REPO_ROOT/.codekg/graph.sqlite`
+- `DOCKG_DB` → `$REPO_ROOT/.dockg/graph.sqlite`
 
 ---
 
-## Step 1: Verify CodeKG Installation
+## Step 1: Verify Installation
 
-The package is managed via Poetry, so all checks use `poetry run`.
+All packages are managed via Poetry. Confirm the key entry points are available:
 
-1. Check that the `codekg-mcp` entry point is available in the venv:
-   ```bash
-   poetry run which codekg-mcp
-   ```
-2. If not found, check whether the package is installed:
-   ```bash
-   poetry show code-kg 2>/dev/null || pip show code-kg 2>/dev/null
-   ```
-3. If the package is missing, instruct the user to install it:
-   ```bash
-   poetry add "code-kg[mcp]"
-   ```
-   Then stop — the user must install before continuing.
+```bash
+cd "$REPO_ROOT"
+poetry run ftreekg --version
+poetry run pycodekg --version
+poetry run dockg-mcp --help | head -5
+```
 
-4. If the package is installed but `codekg-mcp` is missing, the `mcp` extra is likely absent:
-   ```bash
-   poetry add mcp
-   ```
-
-5. Confirm the `mcp` Python package is importable:
-   ```bash
-   poetry run python -c "import mcp; print('mcp OK')"
-   ```
-   If this fails, report the error and stop.
+If any command fails:
+- Check `poetry install --all-extras` has been run
+- Confirm `.venv/` exists: `ls "$REPO_ROOT/.venv/bin/ftreekg"`
+- If missing, instruct the user to run `./scripts/setup.sh` or `poetry install --all-extras`
 
 ---
 
-## Step 2: Build the Knowledge Graph (SQLite)
+## Step 2: Build the FTreeKG Index
 
-1. Check whether `DB_PATH` already exists:
+Build the filesystem tree knowledge graph (SQLite + LanceDB) under `.filetreekg/`.
+
+1. Check whether the index already exists:
+   ```bash
+   ls -lh "$REPO_ROOT/.filetreekg/graph.sqlite" 2>/dev/null
+   ```
+
+2. If it exists, ask the user:
+   > "A FTreeKG index already exists at `$REPO_ROOT/.filetreekg/graph.sqlite`. Rebuild it (wipe), or keep it?"
+   - **Wipe**: proceed (default wipes)
+   - **Keep**: skip to Step 3
+
+3. Build the index (default wipes existing):
+   ```bash
+   cd "$REPO_ROOT" && poetry run ftreekg build
+   ```
+   To keep existing data:
+   ```bash
+   cd "$REPO_ROOT" && poetry run ftreekg build --no-wipe
+   ```
+
+4. Verify the index was created:
+   ```bash
+   sqlite3 "$REPO_ROOT/.filetreekg/graph.sqlite" "SELECT COUNT(*) FROM nodes; SELECT COUNT(*) FROM edges;"
+   ```
+
+5. Report node and edge counts. If both are zero, warn — the repo may have no indexable paths.
+
+---
+
+## Step 3: Build the PyCodeKG Index
+
+Build the Python code knowledge graph under `.codekg/`.
+
+1. Check whether the index exists:
    ```bash
    ls -lh "$REPO_ROOT/.codekg/graph.sqlite" 2>/dev/null
    ```
-2. If it exists, ask the user:
-   > "A knowledge graph already exists at `$REPO_ROOT/.codekg/graph.sqlite`. Rebuild it from scratch (wipe), or keep the existing graph?"
-   - **Wipe**: proceed with `--wipe`
-   - **Keep**: skip to Step 3
 
-3. Run the static analysis build:
+2. If it exists and the user chose to keep the FTreeKG index (Step 2), ask:
+   > "A CodeKG index already exists at `$REPO_ROOT/.codekg/graph.sqlite`. Rebuild it?"
+   - **Yes**: proceed
+   - **No**: skip to Step 4
+
+3. Build (always wipes):
    ```bash
-   poetry run codekg-build-sqlite --repo "$REPO_ROOT" --wipe
+   cd "$REPO_ROOT" && poetry run pycodekg build --repo .
    ```
-4. Verify the database was created and is non-empty:
+
+4. Verify:
    ```bash
    sqlite3 "$REPO_ROOT/.codekg/graph.sqlite" "SELECT COUNT(*) FROM nodes; SELECT COUNT(*) FROM edges;"
    ```
-5. Report the node and edge counts. If both are zero, warn the user — the repo may have no indexable Python files.
+
+5. Report the node and edge counts.
 
 ---
 
-## Step 3: Build the Semantic Index (LanceDB)
+## Step 4: Build the DocKG Index
 
-1. Check whether `LANCEDB_DIR` already exists and is non-empty:
-   ```bash
-   ls "$REPO_ROOT/.codekg/lancedb" 2>/dev/null
-   ```
-2. If it exists and the user chose to keep the SQLite graph (Step 2), ask:
-   > "A vector index already exists at `$REPO_ROOT/.codekg/lancedb`. Rebuild it?"
-   - **Yes**: proceed with `--wipe`
-   - **No**: skip to Step 4
+Build the documentation knowledge graph under `.dockg/`.
 
-3. Run the embedding build:
+1. Check whether the index exists:
    ```bash
-   poetry run codekg-build-lancedb --repo "$REPO_ROOT" --wipe
+   ls -lh "$REPO_ROOT/.dockg/graph.sqlite" 2>/dev/null
    ```
-4. Confirm the LanceDB directory was populated:
+
+2. If it exists and the user chose to keep the prior indices, ask:
+   > "A DocKG index already exists at `$REPO_ROOT/.dockg/graph.sqlite`. Rebuild it?"
+   - **Yes**: proceed
+   - **No**: skip to Step 5
+
+3. Build:
    ```bash
-   ls -lh "$LANCEDB_DIR"
+   cd "$REPO_ROOT" && poetry run dockg build --repo . --wipe
    ```
-5. Report the number of indexed vectors (shown in the command output).
+
+4. Verify:
+   ```bash
+   sqlite3 "$REPO_ROOT/.dockg/graph.sqlite" "SELECT COUNT(*) FROM nodes; SELECT COUNT(*) FROM edges;"
+   ```
+
+5. Report node and edge counts.
 
 ---
 
-## Step 4: Smoke-Test the Query Pipeline
+## Step 5: Smoke-Test the Query Pipeline
 
-Run a quick end-to-end test to confirm the full pipeline works before configuring any agent:
+Quick end-to-end test before configuring any agent.
 
-1. Run a graph stats check:
+1. Test FTreeKG query:
    ```bash
-   poetry run python -c "
-   from code_kg import CodeKG
-   kg = CodeKG(repo_root='$REPO_ROOT')
-   import json; print(json.dumps(kg.stats(), indent=2))
-   "
+   cd "$REPO_ROOT" && poetry run ftreekg query "Python source files"
    ```
 
-2. Run a sample query (must be run from `$REPO_ROOT` so `.codekg/` defaults resolve):
+2. Test PyCodeKG query:
    ```bash
-   cd "$REPO_ROOT" && poetry run codekg-query --q "module structure"
+   cd "$REPO_ROOT" && poetry run pycodekg query "module structure"
    ```
 
-3. If either command errors, diagnose and report the issue before proceeding.
+3. Test DocKG query:
+   ```bash
+   cd "$REPO_ROOT" && poetry run dockg query "installation"
+   ```
+
+4. If any command errors, diagnose and report the issue before proceeding.
 
 ---
 
-## Step 5: Configure MCP Clients
+## Step 6: Configure MCP Clients
 
-Configure the per-repo `.mcp.json`, Claude Desktop (`claude_desktop_config.json`) if applicable, and install the CodeKG skill globally.
+Configure the per-repo `.mcp.json` (Claude Code / Kilo Code) and optionally Claude Desktop.
 
 ### MCP config by agent — quick reference
 
@@ -141,40 +169,86 @@ Configure the per-repo `.mcp.json`, Claude Desktop (`claude_desktop_config.json`
 | **GitHub Copilot** | `.vscode/mcp.json` | ✅ Yes | `"servers"` |
 | **Kilo Code** | `.mcp.json` (project root) | ✅ Yes | `"mcpServers"` |
 | **Claude Code** | `.mcp.json` (project root) | ✅ Yes | `"mcpServers"` |
-| **Cline** | `~/...saoudrizwan.claude-dev/settings/cline_mcp_settings.json` | ❌ Global only | `"mcpServers"` |
 | **Claude Desktop** | `~/Library/Application Support/Claude/claude_desktop_config.json` | ❌ Global only | `"mcpServers"` |
 
-> ⚠️ **Do NOT add `codekg` to any global settings file** (Kilo Code `mcp_settings.json`, Cline `cline_mcp_settings.json`).
+> ⚠️ **Do NOT add ftreekg MCP entries to any global settings file.**
 > Global files are shared across all windows — hardcoded paths will point every window to the same repo.
-> Use per-repo config files (`.vscode/mcp.json` for Copilot, `.mcp.json` for Kilo Code/Claude Code) instead.
 
-> ⚠️ **Cline does NOT support per-repo config.**
-> Options: use Kilo Code instead, or add a uniquely-named entry per repo in `cline_mcp_settings.json` and toggle via the Cline MCP panel.
+### 6a: Claude Code / Kilo Code (.mcp.json)
 
-### 5a: GitHub Copilot (.vscode/mcp.json)
+1. Read the existing file:
+   ```bash
+   cat "$REPO_ROOT/.mcp.json" 2>/dev/null
+   ```
 
-GitHub Copilot in VS Code reads MCP servers from `.vscode/mcp.json` in the workspace root. Note the key differences from `.mcp.json`:
+2. The correct entries are:
+   ```json
+   {
+     "mcpServers": {
+       "pycodekg": {
+         "command": "poetry",
+         "args": [
+           "run", "pycodekg", "mcp",
+           "--repo", "<REPO_ROOT>"
+         ],
+         "env": {
+           "POETRY_VIRTUALENVS_IN_PROJECT": "false"
+         }
+       },
+       "dockg": {
+         "command": "poetry",
+         "args": [
+           "run", "dockg-mcp",
+           "--repo", "<REPO_ROOT>"
+         ],
+         "env": {
+           "POETRY_VIRTUALENVS_IN_PROJECT": "false"
+         }
+       }
+     }
+   }
+   ```
+   Replace `<REPO_ROOT>` with the absolute path.
+
+3. Check whether `pycodekg` or `dockg` entries already exist.
+   - If they exist with wrong paths, replace them.
+   - Merge into the existing `mcpServers` object — do not overwrite other entries.
+
+4. **Verify no stale `codekg` entry exists** — the old entry name was `codekg` (wrong binary). Remove it if present.
+
+5. After saving, restart Claude Code to pick up the new config.
+
+### 6b: GitHub Copilot (.vscode/mcp.json)
+
+Note the format differences vs `.mcp.json`:
 - Uses `"servers"` (not `"mcpServers"`)
-- Requires `"type": "stdio"` for local servers
-- Can be committed to source control to share with the team
+- Requires `"type": "stdio"`
 
-1. Check if `.vscode/mcp.json` exists in `$REPO_ROOT`:
+1. Check if the file exists:
    ```bash
    cat "$REPO_ROOT/.vscode/mcp.json" 2>/dev/null
    ```
 
-2. If it exists, check for an existing `codekg` entry under `servers`.
-   - If one exists, ask the user to replace or keep it.
-
-3. The `codekg` entry to add/update:
+2. The correct entries:
    ```json
    {
      "servers": {
-       "codekg": {
+       "pycodekg": {
          "type": "stdio",
          "command": "poetry",
          "args": [
-           "run", "codekg-mcp",
+           "run", "pycodekg", "mcp",
+           "--repo", "<REPO_ROOT>"
+         ],
+         "env": {
+           "POETRY_VIRTUALENVS_IN_PROJECT": "false"
+         }
+       },
+       "dockg": {
+         "type": "stdio",
+         "command": "poetry",
+         "args": [
+           "run", "dockg-mcp",
            "--repo", "<REPO_ROOT>"
          ],
          "env": {
@@ -185,152 +259,72 @@ GitHub Copilot in VS Code reads MCP servers from `.vscode/mcp.json` in the works
    }
    ```
 
-4. Merge into the existing `servers` object — do not overwrite other entries.
+3. Merge into the existing `servers` object — do not overwrite other entries.
 
-5. After saving, VS Code will prompt you to trust the MCP server — click **Trust** to activate it.
+4. After saving, VS Code will prompt to trust the MCP servers — click **Trust** to activate.
 
-### 5b: Kilo Code / Claude Code (.mcp.json)
+### 6c: Claude Desktop (claude_desktop_config.json)
 
-Both Kilo Code and Claude Code read MCP servers from `.mcp.json` in the project root. Use `poetry run` so the entry point resolves correctly regardless of venv path.
+Claude Desktop does not have Poetry on its PATH. Use the absolute venv binary path.
 
-1. Check if `.mcp.json` exists in `$REPO_ROOT`:
+1. Get the venv path:
    ```bash
-   cat "$REPO_ROOT/.mcp.json" 2>/dev/null
+   cd "$REPO_ROOT" && poetry env info --path
    ```
+   Binaries are at `<venv_path>/bin/pycodekg` and `<venv_path>/bin/dockg-mcp`.
 
-2. If it exists, check for an existing `codekg` entry under `mcpServers`.
-   - If one exists, ask the user to replace or keep it.
+2. Config path (macOS): `~/Library/Application Support/Claude/claude_desktop_config.json`
 
-3. The `codekg` entry to add/update:
+3. The correct entries (use absolute venv path):
    ```json
-   "codekg": {
-     "command": "poetry",
-     "args": [
-       "run", "codekg-mcp",
-       "--repo", "<REPO_ROOT>"
-     ],
-     "env": {
-       "POETRY_VIRTUALENVS_IN_PROJECT": "false"
-     }
+   "pycodekg": {
+     "command": "<venv_path>/bin/pycodekg",
+     "args": ["mcp", "--repo", "<REPO_ROOT>"]
+   },
+   "dockg": {
+     "command": "<venv_path>/bin/dockg-mcp",
+     "args": ["--repo", "<REPO_ROOT>"]
    }
    ```
 
 4. Merge into the existing `mcpServers` object — do not overwrite other entries.
 
-5. **Verify the global settings file does NOT contain a `codekg` entry:**
-   - Kilo Code global config: `~/Library/Application Support/Code/User/globalStorage/kilocode.kilo-code/settings/mcp_settings.json`
-   - Claude Code global config: `~/.claude/settings.json` (or `~/Library/Application Support/Claude/settings.json`)
-   - If a `codekg` entry exists in either global file, remove it and leave `"mcpServers": {}`.
-   - This prevents the static-path conflict where all windows point to the same repo.
+5. **Remove any stale `codekg` entry** — the binary `codekg` does not exist in this venv.
 
-### 5c: Claude Desktop (claude_desktop_config.json)
-
-Claude Desktop does not have Poetry on its PATH, so use the absolute path to the venv binary.
-
-1. Determine the config path:
-   - **macOS**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-   - **Linux**: `~/.config/Claude/claude_desktop_config.json`
-   - **Windows**: `%APPDATA%\Claude\claude_desktop_config.json`
-
-2. Get the venv binary path:
-   ```bash
-   poetry env info --path
-   ```
-   The binary is at `<venv_path>/bin/codekg-mcp`.
-
-3. Check whether the config file exists and read it:
-   ```bash
-   cat "$CONFIG_PATH" 2>/dev/null
-   ```
-
-4. If a `codekg` entry already exists, ask the user to replace or keep it.
-
-5. The `codekg` entry to add/update (use the absolute venv path):
-   ```json
-   "codekg": {
-     "command": "<venv_path>/bin/codekg-mcp",
-     "args": [
-       "--repo", "<REPO_ROOT>"
-     ]
-   }
-   ```
-
-6. Merge into the existing `mcpServers` object — do not overwrite other entries.
-
-7. Show the user the final `codekg` block that was written.
-
-### 5d: Install the CodeKG Skill (Global)
-
-The CodeKG skill provides AI agents with expert knowledge about CodeKG installation and usage. It must be installed to the correct directory for each agent:
-
-| Agent | Skill directory |
-|-------|----------------|
-| **Kilo Code** | `~/.kilocode/skills/codekg/` |
-| **Claude Code** | `~/.claude/skills/codekg/` (served by `skills-copilot` MCP server) |
-| **Other agents** | `~/.agents/skills/codekg/` |
-
-> ⚠️ **Kilo Code does NOT use `~/.claude/skills/` or `~/.agents/skills/`** — it reads from `~/.kilocode/skills/` only.
-
-The easiest way to install to all locations at once is the install script:
-
-```bash
-bash <CODE_KG_REPO>/scripts/install-skill.sh
-```
-
-Or manually:
-
-1. Locate the skill source in the `code_kg` repo:
-   ```bash
-   poetry run python -c "import code_kg; import pathlib; print(pathlib.Path(code_kg.__file__).parent.parent.parent)"
-   ```
-
-2. Check if already installed for Kilo Code:
-   ```bash
-   ls ~/.kilocode/skills/codekg/SKILL.md 2>/dev/null && echo "ALREADY_INSTALLED" || echo "NOT_INSTALLED"
-   ```
-
-3. Install/update to all locations:
-   ```bash
-   # Kilo Code
-   mkdir -p ~/.kilocode/skills/codekg/references
-   cp "<CODE_KG_REPO>/.claude/skills/codekg/SKILL.md" ~/.kilocode/skills/codekg/SKILL.md
-   cp "<CODE_KG_REPO>/.claude/skills/codekg/references/installation.md" ~/.kilocode/skills/codekg/references/installation.md
-
-   # Claude Code
-   mkdir -p ~/.claude/skills/codekg/references
-   cp "<CODE_KG_REPO>/.claude/skills/codekg/SKILL.md" ~/.claude/skills/codekg/SKILL.md
-   cp "<CODE_KG_REPO>/.claude/skills/codekg/references/installation.md" ~/.claude/skills/codekg/references/installation.md
-   ```
-
-4. **Reload VS Code** (`Cmd+Shift+P` → "Developer: Reload Window") for Kilo Code to pick up the new skill.
-
-5. Verify the skill is loaded by asking the agent: "Do you have access to the codekg skill?"
+6. Restart Claude Desktop to activate.
 
 ---
 
-## Step 6: Final Report
-
-Present a summary of everything that was done:
+## Step 7: Final Report
 
 ```
-✓ Repository indexed:   <REPO_ROOT>
-✓ SQLite graph:         <REPO_ROOT>/.codekg/graph.sqlite  (<N> nodes, <M> edges)
-✓ LanceDB index:        <REPO_ROOT>/.codekg/lancedb  (<V> vectors)
-✓ Smoke test:           passed
-✓ Claude Code config:   <REPO_ROOT>/.mcp.json
-✓ Claude Desktop config: <CONFIG_PATH>
-✓ CodeKG skill:         ~/.claude/skills/codekg/  (installed/updated/skipped)
+✓ FTreeKG index:    $REPO_ROOT/.filetreekg/graph.sqlite  (<N> nodes, <M> edges)
+✓ PyCodeKG index:   $REPO_ROOT/.codekg/graph.sqlite       (<N> nodes, <M> edges)
+✓ DocKG index:      $REPO_ROOT/.dockg/graph.sqlite        (<N> nodes, <M> edges)
+✓ Smoke test:       passed
+✓ .mcp.json:        $REPO_ROOT/.mcp.json  (pycodekg + dockg entries)
 
-Restart Claude Code / Claude Desktop to activate the codekg MCP server.
+Restart Claude Code / Claude Desktop to activate the MCP servers.
 
 Available tools once active:
-  • graph_stats()          — codebase size and shape
-  • query_codebase(q)      — semantic + structural exploration
-  • pack_snippets(q)       — source-grounded code snippets
-  • get_node(node_id)      — single node metadata lookup
 
-Suggested first query after restart:
-  graph_stats()
+  pycodekg server:
+    • graph_stats()              — codebase size and shape
+    • query_codebase(q)          — semantic + structural code search
+    • pack_snippets(q)           — source-grounded code snippets
+    • callers(node_id)           — find all callers of a function
+    • explain(node_id)           — natural-language explanation of a node
+    • centrality(top)            — structural importance ranking
+
+  dockg server:
+    • graph_stats()              — doc corpus size
+    • query_docs(q)              — semantic search over documentation
+    • pack_docs(q)               — doc snippets for LLM context
+    • get_node(node_id)          — single doc node lookup
+
+Suggested first queries after restart:
+  pycodekg: graph_stats()
+  dockg:    graph_stats()
 ```
 
 ---
@@ -340,20 +334,25 @@ Suggested first query after restart:
 - **Do NOT modify source files** in the target repository.
 - **Do NOT run `git commit`** or any destructive git operations.
 - Use **absolute paths** everywhere — relative paths will break MCP clients.
-- Always use `poetry run` for CLI calls — the package is not installed globally.
+- Always use `poetry run` for CLI calls — the packages are not installed globally.
+- The `codekg-mcp` binary does **not** exist in this venv — use `pycodekg mcp` instead.
 - If any step fails, stop and report the error clearly before proceeding.
-- If the user's repo is very large (>50k lines of Python), warn that the build and embedding steps may take several minutes.
 
 ---
 
 ## Rebuilding After Code Changes
 
-When the target codebase changes, the graph must be rebuilt. Remind the user:
+When the codebase or docs change, rebuild the affected indices:
 
 ```bash
-# Rebuild both artifacts (idempotent — safe to re-run)
-poetry run codekg-build-sqlite  --repo "$REPO_ROOT" --wipe
-poetry run codekg-build-lancedb --repo "$REPO_ROOT" --wipe
+# Rebuild FTreeKG index
+cd "$REPO_ROOT" && poetry run ftreekg build
+
+# Rebuild PyCodeKG index (always wipes)
+cd "$REPO_ROOT" && poetry run pycodekg build --repo .
+
+# Rebuild DocKG index
+cd "$REPO_ROOT" && poetry run dockg build --repo . --wipe
 ```
 
-The MCP client configs do not need to change — they point to the same file paths.
+MCP client configs do not need to change — they point to the same file paths.

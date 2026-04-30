@@ -9,43 +9,19 @@ import tomllib
 from pathlib import Path
 
 
-# Built-in directories to always skip
+# Non-dotdir names always skipped (dotdirs are handled by the dotdir rule in the extractor).
 DEFAULT_SKIP_DIRS = {
-    # Version control and git
-    ".git",
-    ".github",
-    ".gitignore",
-    # Python environments and packages
-    ".venv",
-    ".env",
+    # Python environments
     "venv",
     "env",
     # Python caches
     "__pycache__",
-    ".pytest_cache",
-    ".mypy_cache",
-    ".ruff_cache",
     # Build artifacts
     "build",
     "dist",
-    ".tox",
     "egg-info",
-    ".egg-info",
-    # IDEs and editors
-    ".vscode",
-    ".idea",
-    ".vim",
-    ".emacs",
-    ".sublime",
-    # Knowledge graphs
-    ".codekg",
-    ".dockg",
-    ".filetreekg",
     # Node/npm
     "node_modules",
-    ".npm",
-    # macOS
-    ".DS_Store",
 }
 
 
