@@ -1,91 +1,22 @@
-# Release Notes — v0.6.0
+# Release Notes — v0.8.0
 
-> Released: 2026-04-24
+> Released: 2026-04-29
 
 ## Highlights
 
-**FTreeKG v0.6.0** brings snapshot housekeeping, a cleaner install story, richer
-analysis output, and formal software citation support via Zenodo/CITATION.cff.
+**v0.8.0** adds a live status dashboard, cleans up how dotdirs are handled, and fixes the MCP server configuration.
 
----
+### `ftreekg status`
 
-## New Features
+A new `status` command gives you an instant snapshot of the indexed graph — node and edge counts by kind, total indexed size, whether the LanceDB vector index is present, and a bar chart of size by top-level directory, all rendered with Rich. Useful for a quick health check before querying or before a rebuild.
 
-### `ftreekg snapshot prune`
-A new CLI command that removes vestigial snapshots to keep the `.filetreekg/snapshots/`
-directory lean. It handles three categories automatically:
+### Smarter dotdir exclusion
 
-- **Metric-duplicates** — interior snapshots whose metrics are unchanged from the
-  previous entry (noise with no signal)
-- **Broken entries** — manifest entries whose JSON file is missing from disk
-- **Orphaned files** — JSON files on disk not referenced by the manifest
+Previously, directories like `.git`, `.venv`, `.codekg`, and `.pytest_cache` had to be listed individually in `DEFAULT_SKIP_DIRS` to be excluded. Now the extractor automatically skips any directory whose name starts with `.` — unless you explicitly opt it back in via `include_dirs`. This produces much cleaner index counts (the repo itself indexes at 51 nodes instead of 1,400+) and means you never have to maintain that list again.
 
-The oldest (baseline) and newest (latest) snapshots are always preserved.
+### MCP configuration fixed
 
-```bash
-ftreekg snapshot prune --dry-run   # preview what would be removed
-ftreekg snapshot prune             # remove for real
-```
-
-### `PruneResult` re-exported
-`ftree_kg.snapshots.PruneResult` is now publicly re-exported for callers that
-inspect prune results programmatically.
-
-### ASCII directory tree in `analyze()`
-`FileTreeKG.analyze()` now renders a depth-limited, child-truncated ASCII directory
-tree (depth ≤ 3) at the end of the Markdown report, giving an at-a-glance picture
-of the indexed hierarchy.
-
-### Software citation (`CITATION.cff`)
-A `CITATION.cff` file has been added to the repo root. GitHub and Zenodo both
-recognise this format, so the preferred citation metadata is always available
-alongside the DOI.
-
----
-
-## Improvements
-
-### Simpler installation
-`pyproject.toml` has been restructured around PEP 621 `[project.optional-dependencies]`
-instead of Poetry-specific groups. All install paths now work the same way:
-
-| Goal | Command |
-|---|---|
-| Core runtime only | `pip install -e "."` |
-| Core + dev tools | `pip install -e ".[dev]"` |
-| Core + KG integrations | `pip install -e ".[kgdeps]"` |
-| Everything | `pip install -e ".[all]"` |
-| Everything (Poetry) | `poetry install --all-extras` |
-
-### Cleaner analysis terminology
-`analyze()` now uses **paths** and **links** instead of "nodes" and "edges" throughout
-the summary table, section headings, and bar chart — language that better matches the
-filesystem domain.
-
-### VS Code test discovery fixed
-`.vscode/settings.json` now correctly points pytest at `tests/` (was `filetreekg/tests/`,
-a stale path from an earlier repo rename that prevented the VS Code test runner from
-discovering any tests).
-
----
-
-## Bug Fixes
-
-- `_ascii_tree()` type annotations tightened: bare `dict` → `dict[str, dict[str, Any]]`
-  (resolved mypy `type-arg` errors)
-- `_bar` local variable renamed to `size_bar` to satisfy pylint `disallowed-name`
-
----
-
-## Installation
-
-```bash
-pip install -e ".[all]"
-# or
-poetry install --all-extras
-```
-
-Requires Python 3.12 or 3.13.
+The `.mcp.json` and the `/setup-mcp` command were still wired to the old `codekg-mcp` binary (which doesn't exist in this venv) and pointed at the wrong-case repo path. Both are now corrected to use `pycodekg mcp` and `dockg-mcp` via `poetry run`.
 
 ---
 
