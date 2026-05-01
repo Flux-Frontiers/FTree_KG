@@ -12,10 +12,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import click
-
-from typing import cast
 
 from ftree_kg.cli.group import cli
 from ftree_kg.cli.options import db_option, lancedb_option, repo_option

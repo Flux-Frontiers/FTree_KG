@@ -81,7 +81,7 @@ class FileTreeKGExtractor(KGExtractor):
                 lines.append(f"**Target:** {target}")
 
             return "\n".join(lines)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             return ""
 
     def coverage_metric(self, nodes: list[NodeSpec]) -> float:

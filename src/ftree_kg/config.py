@@ -8,7 +8,6 @@ from __future__ import annotations
 import tomllib
 from pathlib import Path
 
-
 # Non-dotdir names always skipped (dotdirs are handled by the dotdir rule in the extractor).
 DEFAULT_SKIP_DIRS = {
     # Python environments

@@ -5,15 +5,17 @@ FileTreeKG — KGModule for filetreekg.
 
 from __future__ import annotations
 
+import json
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
 
-from kg_utils.types import KGModule, QueryResult, SnippetPack
-from kg_utils.types import NodeSpec, EdgeSpec
+from kg_utils.types import EdgeSpec, KGModule, NodeSpec, QueryResult, SnippetPack
 
 from ftree_kg.config import load_exclude_dirs, load_include_dirs
 from ftree_kg.extractor import FileTreeKGExtractor
+from ftree_kg.metadata import extract_metadata, metadata_keywords, metadata_prose
 
 _SCHEMA = """
 DROP TABLE IF EXISTS nodes;
@@ -25,7 +27,8 @@ CREATE TABLE nodes (
     qualname    TEXT,
     source_path TEXT,
     docstring   TEXT,
-    size_bytes  INTEGER DEFAULT 0
+    size_bytes  INTEGER DEFAULT 0,
+    metadata    TEXT
 );
 CREATE TABLE edges (
     source_id TEXT,
@@ -99,6 +102,66 @@ def _size_bar(value: int, total: int, width: int = 20) -> str:
     return "█" * filled + "░" * (width - filled)
 
 
+def _embed_text(row: tuple[Any, ...]) -> str:
+    """Build the canonical text document used to embed a filesystem node.
+
+    A file tree's semantic axes are intentionally narrow: a node is identified
+    by its **kind** (file / directory / symlink), its **basename** (with
+    extension), the **path components** that lead to it, and the **extension**
+    itself.  There is no docstring, no qualname, no module — those concepts
+    belong to source code, not filesystem entries.
+
+    The text is two lines:
+
+    * a one-sentence locator (``"{kind} {basename} at {source_path}"``)
+    * a flat keyword line containing the path components, the basename split
+      on ``_``/``-``/``.``, and the extension as its own token
+
+    For ``src/ftree_kg/cli/cmd_build.py`` this produces::
+
+        file cmd_build.py at src/ftree_kg/cli/cmd_build.py
+        keywords: src ftree_kg cli cmd_build cmd build py
+
+    making ``"build script"``, ``"CLI"``, ``"py"``, and ``"cmd_build"`` all
+    plausible matches against the same vector.
+
+    When the row carries per-format metadata (EXIF for images, etc.), prose
+    tokens projected from that metadata (camera make/model, capture year, GPS
+    coordinates, description) are appended to the keyword line so a query
+    like ``"iPhone photos from 2023"`` can hit a vacation snapshot whose path
+    says nothing about either.
+
+    :param row: SQLite row ``(node_id, kind, name, qualname, source_path,
+                docstring, size_bytes, metadata)`` — only ``kind``, ``name``,
+                ``source_path``, and ``metadata`` are used.
+    :return: Canonical text document.
+    """
+    _node_id, kind, name, _qualname, source_path, _docstring, _size, metadata = row
+    src = source_path or ""
+    parts = [p for p in Path(src).parts if p and p != "."]
+
+    # Basename split: drop the extension, keep the stem itself, then split it
+    # on _/-/. so both literal ("cmd_build") and tokenised ("cmd", "build")
+    # forms are reachable from the same vector.
+    basename = name or (parts[-1] if parts else "")
+    stem, _dot, ext = basename.rpartition(".")
+    stem = stem or basename
+    base_tokens = [t for t in re.split(r"[._\-]+", stem) if t]
+
+    meta_dict: dict[str, Any] | None = None
+    if metadata:
+        try:
+            meta_dict = json.loads(metadata)
+        except (TypeError, ValueError):
+            meta_dict = None
+    meta_tokens = metadata_keywords(meta_dict)
+
+    keywords = " ".join(
+        dict.fromkeys([*parts, stem, *base_tokens, *([ext] if ext else []), *meta_tokens])
+    )
+    return f"{kind} {basename} at {src}\nkeywords: {keywords}"
+
+
 class FileTreeKG(KGModule):
     """Knowledge graph module for filetreekg.
 
@@ -145,13 +208,21 @@ class FileTreeKG(KGModule):
         """
         return "meta"
 
-    def build(self, wipe: bool = True) -> None:
-        """Build the SQLite graph index by running the extractor.
+    def build(self, wipe: bool = True, embed: bool = True, metadata: bool = True) -> None:
+        """Build the SQLite graph index and (optionally) the LanceDB vector index.
 
-        Pass 1 — extract nodes/edges from the filesystem.
-        Pass 2 — re-stat each file node to populate size_bytes.
+        Pass 1   — extract nodes/edges from the filesystem.
+        Pass 2   — re-stat each file node to populate ``size_bytes``.
+        Pass 2.5 — extract per-format metadata (EXIF, etc.) into the
+                   ``metadata`` column when ``metadata=True``.
+        Pass 3   — embed each node's canonical text and write to LanceDB
+                   when ``embed=True`` and ``kg_utils.embedder`` is available.
 
         :param wipe: If True, delete the existing database before building.
+        :param embed: If True, populate the LanceDB vector index after Pass 2.5.
+        :param metadata: If True, extract per-format metadata (image EXIF, etc.)
+            for each file node.  Cheap — the dispatcher returns immediately
+            for files outside the supported extension set.
         """
         assert self.db_path is not None
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
@@ -166,7 +237,10 @@ class FileTreeKG(KGModule):
             for spec in extractor.extract():
                 if isinstance(spec, NodeSpec):
                     conn.execute(
-                        "INSERT OR REPLACE INTO nodes VALUES (?,?,?,?,?,?,0)",
+                        "INSERT OR REPLACE INTO nodes "
+                        "(node_id, kind, name, qualname, source_path, docstring,"
+                        " size_bytes, metadata) "
+                        "VALUES (?,?,?,?,?,?,0,NULL)",
                         (
                             spec.node_id,
                             spec.kind,
@@ -198,6 +272,125 @@ class FileTreeKG(KGModule):
                 updates.append((size, node_id))
             conn.executemany("UPDATE nodes SET size_bytes = ? WHERE node_id = ?", updates)
             conn.commit()
+
+        # Pass 2.5: extract per-format metadata (EXIF for images, etc.)
+        if metadata:
+            self._extract_node_metadata()
+
+        # Pass 3: embed nodes into LanceDB
+        if embed:
+            self._embed_nodes(wipe=wipe)
+
+    def _extract_node_metadata(self) -> None:
+        """Walk every file node, run :func:`extract_metadata`, persist as JSON.
+
+        Directories and symlinks are skipped (no per-format metadata applies).
+        Failures on individual files are silently swallowed — a single bad
+        image must not abort the build.
+        """
+        assert self.db_path is not None
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT node_id, source_path FROM nodes WHERE kind = 'file'"
+            ).fetchall()
+            updates: list[tuple[str | None, str]] = []
+            for node_id, source_path in rows:
+                full_path = self.repo_root / source_path
+                try:
+                    meta = extract_metadata(full_path)
+                except Exception:  # pylint: disable=broad-exception-caught
+                    meta = None
+                blob = json.dumps(meta) if meta else None
+                updates.append((blob, node_id))
+            conn.executemany("UPDATE nodes SET metadata = ? WHERE node_id = ?", updates)
+            conn.commit()
+
+    def _embed_nodes(self, wipe: bool = True) -> None:
+        """Embed every node into LanceDB at ``self.lancedb_dir / kg_nodes.lance``.
+
+        Builds a canonical text document per node (kind, name, qualname, source
+        path, docstring, keywords derived from path components), embeds it via
+        :func:`kg_utils.embedder.get_embedder`, and writes ``(id, kind, name,
+        qualname, module_path, text, vector)`` rows to a LanceDB table named
+        ``kg_nodes``.
+
+        Silently no-ops (and prints a brief warning to stderr) when LanceDB or
+        the sentence-transformer embedder is unavailable, so a missing model
+        cache or a CI runner without ``sentence-transformers`` does not break
+        the build.
+
+        :param wipe: If True, drop and recreate the table; if False, append.
+        """
+        if self.lancedb_dir is None:
+            return
+        try:
+            import lancedb  # pylint: disable=import-outside-toplevel
+            from kg_utils.embedder import get_embedder  # pylint: disable=import-outside-toplevel
+        except ImportError as exc:  # pragma: no cover
+            import sys  # pylint: disable=import-outside-toplevel
+
+            print(
+                f"[FileTreeKG] embedding pass skipped — {exc}",
+                file=sys.stderr,
+            )
+            return
+
+        assert self.db_path is not None
+        with sqlite3.connect(self.db_path) as conn:
+            rows = conn.execute(
+                "SELECT node_id, kind, name, qualname, source_path, docstring,"
+                " size_bytes, metadata FROM nodes"
+            ).fetchall()
+        if not rows:
+            return
+
+        try:
+            embedder = get_embedder()
+        except Exception as exc:  # pylint: disable=broad-exception-caught # pragma: no cover
+            import sys  # pylint: disable=import-outside-toplevel
+
+            print(
+                f"[FileTreeKG] embedding pass skipped — embedder load failed: {exc}",
+                file=sys.stderr,
+            )
+            return
+
+        texts = [_embed_text(r) for r in rows]
+        vectors = embedder.embed_texts(texts)
+
+        records: list[dict[str, Any]] = []
+        for (
+            node_id,
+            kind,
+            name,
+            qualname,
+            source_path,
+            _docstring,
+            _size,
+            _metadata,
+        ), text, vec in zip(rows, texts, vectors, strict=True):
+            records.append(
+                {
+                    "id": node_id,
+                    "kind": kind,
+                    "name": name,
+                    "qualname": qualname,
+                    "module_path": source_path,
+                    "text": text,
+                    "vector": vec,
+                }
+            )
+
+        self.lancedb_dir.mkdir(parents=True, exist_ok=True)
+        db = lancedb.connect(str(self.lancedb_dir))
+        if "kg_nodes" in db.list_tables().tables:
+            if wipe:
+                db.drop_table("kg_nodes")
+                db.create_table("kg_nodes", data=records)
+            else:
+                db.open_table("kg_nodes").add(records)
+        else:
+            db.create_table("kg_nodes", data=records)
 
     def stats(self) -> dict[str, Any]:
         """Return statistics about the knowledge graph.
@@ -239,11 +432,65 @@ class FileTreeKG(KGModule):
         }
 
     def query(self, q: str, k: int = 8, **kwargs: Any) -> QueryResult:
-        """Query the graph by text match against qualname, kind, and docstring.
+        """Semantic query against the LanceDB vector index, with LIKE fallback.
+
+        Vector-seeds via the kg_utils embedder against ``kg_nodes.lance`` and
+        ranks by cosine distance.  When the LanceDB table is missing or empty
+        (e.g. embeddings not yet built), falls back to a substring LIKE match
+        against ``qualname``, ``kind``, and ``docstring`` so the method always
+        returns something useful.
 
         :param q: Query string.
         :param k: Maximum number of results.
-        :return: QueryResult with matched node dicts.
+        :return: QueryResult with matched node dicts ranked by score.
+        """
+        nodes = self._semantic_query(q, k)
+        if not nodes:
+            nodes = self._lexical_query(q, k)
+        return QueryResult(nodes=nodes, seeds=len(nodes), returned_nodes=len(nodes))
+
+    def _semantic_query(self, q: str, k: int) -> list[dict[str, Any]]:
+        """Vector search over the LanceDB table; returns [] if unavailable."""
+        if self.lancedb_dir is None:
+            return []
+        table_path = Path(self.lancedb_dir) / "kg_nodes.lance"
+        if not table_path.exists():
+            return []
+        try:
+            import lancedb  # pylint: disable=import-outside-toplevel
+            from kg_utils.embedder import get_embedder  # pylint: disable=import-outside-toplevel
+
+            embedder = get_embedder()
+            vec = embedder.embed_query(q)
+            db = lancedb.connect(str(self.lancedb_dir))
+            table = db.open_table("kg_nodes")
+            rows = table.search(vec).limit(k).to_list()
+        except Exception:  # pylint: disable=broad-exception-caught
+            return []
+
+        nodes: list[dict[str, Any]] = []
+        for r in rows:
+            dist = float(r.get("_distance", 0.0))
+            score = max(0.0, 1.0 - dist / 2.0)
+            nodes.append(
+                {
+                    "node_id": r.get("id", ""),
+                    "kind": r.get("kind", ""),
+                    "name": r.get("name", ""),
+                    "qualname": r.get("qualname", ""),
+                    "source_path": r.get("module_path", ""),
+                    "docstring": r.get("text", ""),
+                    "score": score,
+                }
+            )
+        return nodes
+
+    def _lexical_query(self, q: str, k: int) -> list[dict[str, Any]]:
+        """Substring LIKE fallback used when no vector index is available.
+
+        Searches ``qualname``, ``kind``, ``docstring``, and the JSON-encoded
+        ``metadata`` column so a query like ``"sunset"`` can match an image
+        whose EXIF description contains it, even without an embedding index.
         """
         assert self.db_path is not None
         pattern = f"%{q}%"
@@ -253,11 +500,12 @@ class FileTreeKG(KGModule):
                 SELECT node_id, kind, name, qualname, source_path, docstring
                 FROM nodes
                 WHERE qualname LIKE ? OR kind LIKE ? OR docstring LIKE ?
+                   OR metadata LIKE ?
                 LIMIT ?
                 """,
-                (pattern, pattern, pattern, k),
+                (pattern, pattern, pattern, pattern, k),
             ).fetchall()
-        nodes = [
+        return [
             {
                 "node_id": r[0],
                 "kind": r[1],
@@ -269,23 +517,64 @@ class FileTreeKG(KGModule):
             }
             for r in rows
         ]
-        return QueryResult(nodes=nodes, seeds=len(nodes), returned_nodes=len(nodes))
 
     def pack(self, q: str, **kwargs: Any) -> SnippetPack:
-        """Pack metadata snippets for filesystem nodes.
+        """Pack metadata "snippets" for filesystem nodes.
 
-        For filesystem trees, we return node metadata (size, timestamps, permissions)
-        rather than file contents. The nodes are in the SnippetPack.nodes field.
+        Filesystem nodes have no source body, so each snippet's ``content`` is
+        a compact metadata blob — kind + path + size + docstring — assembled
+        from the SQLite ``nodes`` table.  Both ``SnippetPack.nodes`` and
+        ``SnippetPack.snippets`` are populated; consumers of either will work.
 
         :param q: Query string.
         :param k: Number of results.
         :param max_nodes: Max nodes in pack.
-        :return: SnippetPack with metadata in nodes field.
+        :return: SnippetPack with snippet dicts (node_id, source_path, content, score, kind, name).
         """
         k: int = kwargs.get("k", 8)
         max_nodes: int = kwargs.get("max_nodes", 15)
-
         qresult = self.query(q, k=k)
+
+        sizes: dict[str, int] = {}
+        meta_blobs: dict[str, str | None] = {}
+        if self.db_path is not None:
+            with sqlite3.connect(self.db_path) as conn:
+                rows = conn.execute("SELECT node_id, size_bytes, metadata FROM nodes").fetchall()
+            for nid, sz, mb in rows:
+                sizes[nid] = sz
+                meta_blobs[nid] = mb
+
+        snippets: list[dict[str, Any]] = []
+        for n in qresult.nodes[:max_nodes]:
+            nid = n.get("node_id", "")
+            kind = n.get("kind", "")
+            path = n.get("source_path", "")
+            docstring = (n.get("docstring") or "").strip()
+            size_bytes = sizes.get(nid, 0)
+            lines = [f"{kind}: {path}"]
+            if size_bytes:
+                lines.append(f"size: {_fmt_size(size_bytes)}")
+            if docstring:
+                lines.append(docstring)
+            mb = meta_blobs.get(nid)
+            if mb:
+                try:
+                    meta = json.loads(mb)
+                except (TypeError, ValueError):
+                    meta = None
+                prose = metadata_prose(meta)
+                if prose:
+                    lines.append(prose)
+            snippets.append(
+                {
+                    "node_id": nid,
+                    "source_path": path,
+                    "content": "\n".join(lines),
+                    "score": n.get("score", 0.0),
+                    "kind": kind,
+                    "name": n.get("name", ""),
+                }
+            )
 
         return SnippetPack(
             query=q,
@@ -297,6 +586,7 @@ class FileTreeKG(KGModule):
             model="",
             nodes=qresult.nodes[:max_nodes],
             edges=qresult.edges,
+            snippets=snippets,
         )
 
     def analyze(self) -> str:

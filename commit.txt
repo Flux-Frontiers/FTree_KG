@@ -1,19 +1,42 @@
-feat(module): two-pass build with size_bytes, richer analyze, wipe-by-default
+feat(module,metadata): EXIF extraction, LanceDB semantic query, pack snippets
 
-Add size_bytes column to nodes table; build() now runs two passes:
-pass 1 extracts nodes/edges, pass 2 re-stats each file for byte sizes.
+Add a per-format metadata layer and a real semantic-search path to
+FileTreeKG.
 
-stats() extended with total_size_bytes and size_by_top_dir.
-analyze() rewritten with summary table, ASCII bar chart (size by dir),
-and Markdown tables for node/edge breakdowns.
+* New ftree_kg.metadata dispatcher with image EXIF extraction via
+  Pillow — camera make/model, lens, capture timestamp, description,
+  ISO/F-number/exposure/focal length, plus GPS decoded from DMS to
+  decimal lat/lon.  Stubs in place for audio/video/PDF.
+* New nodes.metadata SQLite column carries the canonical metadata
+  dict as a JSON blob; populated by a new Pass 2.5 in
+  FileTreeKG.build(metadata=True).
+* New Pass 3 (FileTreeKG.build(embed=True)) embeds every node into
+  a kg_nodes LanceDB table via kg_utils.embedder using a canonical
+  two-line text document — "{kind} {basename} at {path}" plus a
+  keyword line of path components, basename splits, extension, and
+  metadata-projected prose (so "iPhone photos from 2023" can hit a
+  vacation snapshot whose path says nothing about either).
+* FileTreeKG.query() now does semantic vector search first and falls
+  back to a substring LIKE search (which now also searches the
+  metadata JSON blob) when the index is missing.
+* FileTreeKG.pack() now populates SnippetPack.snippets with real
+  per-node content (kind, path, formatted size, docstring, EXIF
+  prose) alongside the existing nodes field.
 
-build() default changed to wipe=True; CLI --wipe flag replaced by
---no-wipe. Schema now uses DROP/CREATE instead of CREATE IF NOT EXISTS
-to prevent column-mismatch errors on schema evolution.
+Also:
+* Switch ftree_kg.snapshots to kg_utils.snapshots (drops the
+  kg-snapshot git dep); kgmodule-utils bumped to >=0.2.1.
+* Add lancedb and pillow as core deps; resolve pycode-kg and doc-kg
+  from PyPI in the kgdeps extra.
+* pyproject cleanup — drop black, add ruff/pytest config blocks,
+  pylint switched to disable-all-then-enable for the rules we care
+  about.
+* mypy/pylint fixes — _embed_text typed as tuple[Any, ...]; EXIF tag
+  fallback narrowed so _EXIF_FIELDS.get() always sees a str; tests
+  assert kg.db_path is not None before sqlite3.connect; unused
+  # type: ignore removed; broad-exception-caught annotated.
+* New tests/test_metadata.py (EXIF + GPS round-trip) and
+  tests/test_snapshots.py; tests/test_query.py expanded to cover
+  image-metadata embed text and pack snippets.
 
-.gitignore switched from whole-directory KG exclusions to fine-grained
-patterns that exclude DB/vectors but track snapshots/. Added .agentkg/.
-
-Bump version 0.4.1 → 0.5.0.
-
-Co-Authored-By: Claude Sonnet 4.6 <noreply@anthropic.com>
+Co-Authored-By: Claude Opus 4.7 <noreply@anthropic.com>

@@ -5,10 +5,11 @@ Tests for FileTreeKGExtractor.
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 
-from kg_utils.types import NodeSpec, EdgeSpec
+import pytest
+from kg_utils.types import EdgeSpec, NodeSpec
+
 from ftree_kg.extractor import FileTreeKGExtractor
 
 

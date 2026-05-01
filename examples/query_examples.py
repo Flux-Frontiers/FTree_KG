@@ -5,6 +5,7 @@ Shows how to use the FileTreeKG module to query and analyze file trees.
 """
 
 from pathlib import Path
+
 from src.module import FileTreeKG
 
 

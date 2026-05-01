@@ -1,13 +1,16 @@
 # pyproject.toml — FTreeKG package configuration (PEP 621)
 #
+# Author: Eric G. Suchanek, PhD
+# Last Revision: 2026-04-30
+#
 # Build system : Poetry 2.x with PEP 621 [project] table
 #
 # Quick install (pip)
 # -------------------
-#   pip install -e ".[dev]"             core + dev tools (pytest, black, ruff, mypy)
-#   pip install -e ".[kgdeps]"          core + KG integrations (pycode-kg, doc-kg, agent-kg)
+#   pip install -e ".[dev]"             core + dev tools (pytest, ruff, mypy, etc.)
+#   pip install -e ".[kgdeps]"          core + KG integrations (pycode-kg, doc-kg)
 #   pip install -e ".[all]"             everything above
-#   pip install -e "."                  core runtime only (click, kg-snapshot, kgmodule-utils)
+#   pip install -e "."                  core runtime only
 #
 # Quick install (poetry)
 # ----------------------
@@ -20,7 +23,7 @@
 # ----------------
 #   python -m venv .venv
 #   source .venv/bin/activate       # Windows: .venv\Scripts\activate
-#   pip install -e ".[all]"
+#   pip install -e ".[dev]"
 #
 # Run tests
 # ---------
@@ -30,12 +33,26 @@
 #
 # Build KG indices (after code changes)
 # --------------------------------------
-#   codekg build --repo . --wipe
-#   dockg build --repo . --wipe
+#   ftreekg build --repo .
 
 [build-system]
-requires = ["poetry-core"]
+requires = ["poetry-core>=2.0.0"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.poetry]
+packages = [{ include = "ftree_kg", from = "src" }]
+
+[tool.poetry.group.dev.dependencies]
+detect-secrets = ">=1.5.0"
+mypy           = ">=1.10.0"
+pre-commit     = ">=4.5.1"
+pylint         = ">=4.0.5"
+pytest         = ">=8.0.0"
+pytest-cov     = ">=5.0.0"
+ruff           = ">=0.4.0"
+# KG sister packages not yet on PyPI — install manually:
+#   pip install git+https://github.com/Flux-Frontiers/agent_kg.git
+agent-kg = { git = "https://github.com/Flux-Frontiers/agent_kg.git" }
 
 # ---------------------------------------------------------------------------
 # PEP 621 project metadata
@@ -45,14 +62,16 @@ name = "ftree-kg"
 version = "0.8.0"
 description = "KGModule for file tree knowledge graphs"
 readme = "README.md"
-license = { text = "Elastic-2.0" }
+license = "Elastic-2.0"
 authors = [
     { name = "Eric G. Suchanek, PhD", email = "suchanek@mac.com" }
 ]
-keywords = ["knowledge-graph", "filesystem", "semantic-search", "kgmodule"]
+keywords = ["knowledge-graph", "filesystem", "lancedb", "sqlite", "semantic-search", "kgmodule"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -60,47 +79,42 @@ classifiers = [
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "click>=8.1.0,<9",
+    "kgmodule-utils>=0.2.1",
+    "lancedb>=0.29.0",
+    "pillow>=10.0.0",
     "rich>=13.0.0",
-    "kg-snapshot @ git+https://github.com/Flux-Frontiers/kg_snapshot.git",
-    "kgmodule-utils>=0.2.0",
 ]
 
 [project.optional-dependencies]
 dev = [
+    "detect-secrets>=1.5.0",
+    "mypy>=1.10.0",
+    "pre-commit>=4.5.1",
+    "pylint>=4.0.5",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
-    "black>=22.0",
     "ruff>=0.4.0",
-    "mypy>=1.10.0",
-    "pylint>=4.0.5",
 ]
+# pycode-kg and doc-kg are on PyPI; agent-kg is not yet — install manually from git
 kgdeps = [
-    "pycode-kg @ git+https://github.com/Flux-Frontiers/pycode_kg.git",
-    "doc-kg @ git+https://github.com/Flux-Frontiers/doc_kg.git",
-    "agent-kg @ git+https://github.com/Flux-Frontiers/agent_kg.git",
+    "doc-kg>=0.11.0",
+    "pycode-kg>=0.16.0",
 ]
 all = [
+    "detect-secrets>=1.5.0",
+    "doc-kg>=0.11.0",
+    "mypy>=1.10.0",
+    "pre-commit>=4.5.1",
+    "pycode-kg>=0.16.0",
+    "pylint>=4.0.5",
     "pytest>=8.0.0",
     "pytest-cov>=5.0.0",
-    "black>=22.0",
     "ruff>=0.4.0",
-    "mypy>=1.10.0",
-    "pylint>=4.0.5",
-    "pycode-kg @ git+https://github.com/Flux-Frontiers/pycode_kg.git",
-    "doc-kg @ git+https://github.com/Flux-Frontiers/doc_kg.git",
-    "agent-kg @ git+https://github.com/Flux-Frontiers/agent_kg.git",
 ]
 
 [project.urls]
-Repository = "https://github.com/flux-frontiers/FTreeKG"
-
-[tool.poetry.group.dev.dependencies]
-pytest     = ">=8.0.0"
-pytest-cov = ">=5.0.0"
-black      = ">=22.0"
-ruff       = ">=0.4.0"
-mypy       = ">=1.10.0"
-pylint     = ">=4.0.5"
+Homepage   = "https://github.com/Flux-Frontiers/FTreeKG"
+Repository = "https://github.com/Flux-Frontiers/FTreeKG"
 
 [project.scripts]
 ftreekg          = "ftree_kg.cli:cli"
@@ -113,57 +127,44 @@ ftreekg-snapshot = "ftree_kg.cli.cmd_snapshot:snapshot"
 # ---------------------------------------------------------------------------
 # Tool configuration
 # ---------------------------------------------------------------------------
-[tool.black]
-line-length    = 100
-target-version = ["py312", "py313"]
-
 [tool.ruff]
 line-length    = 100
 target-version = "py312"
 
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = ["E501"]
+
 [tool.mypy]
-python_version     = "3.12"
-strict             = true
-warn_unused_ignores = true
-disallow_untyped_defs = true
-
-[[tool.mypy.overrides]]
-# Optional kgdeps — treated as Any whether installed or not.
-module = ["kg_rag.*", "ftree_kg.*"]
+python_version         = "3.12"
+strict                 = true
+warn_unused_ignores    = true
+disallow_untyped_defs  = true
 ignore_missing_imports = true
+mypy_path              = "src"
+explicit_package_bases = true
 
-[[tool.mypy.overrides]]
-# kg-snapshot is a required runtime dep — always installed, so follow its types.
-module = ["kg_snapshot.*"]
-ignore_missing_imports = true
-follow_untyped_imports = true
-
-[tool.pylint.MASTER]
-ignored-modules = [
-    "pycode_kg", "pycode_kg.module", "pycode_kg.module.types",
-    "kg_rag", "kg_rag.adapters.base", "kg_rag.primitives",
-    "kg_snapshot", "kg_snapshot.snapshots",
-    "click", "pytest",
+[tool.pytest.ini_options]
+testpaths  = ["tests"]
+addopts    = "-v --tb=short"
+pythonpath = ["src"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m not slow')",
+    "integration: marks tests that exercise real external dependencies (model, LanceDB)",
 ]
 
-[tool.pylint."MESSAGES CONTROL"]
-disable = [
-    "too-many-arguments",
-    "too-many-positional-arguments",
-    "too-many-locals",
-    "duplicate-code",
-    "missing-function-docstring",
-    "redefined-outer-name",
-    "wrong-import-order",
-    "import-outside-toplevel",
-    "unused-argument",
-    "redefined-builtin",
-    "broad-exception-caught",
-    "unspecified-encoding",
+[tool.pylint.messages_control]
+disable = ["all"]
+enable = [
+    "broad-exception-caught",   # W0718
+    "cell-var-from-loop",       # W0640
+    "cyclic-import",            # R0401
+    "import-outside-toplevel",  # C0415
+    "undefined-variable",       # E0602
 ]
 
 # ---------------------------------------------------------------------------
-# FTreeKG / CodeKG / DocKG index configuration
+# FTreeKG / PyCodeKG / DocKG index configuration
 # ---------------------------------------------------------------------------
 [tool.filetreekg]
 # Directories to include in indexing (empty = include all)
@@ -171,9 +172,13 @@ disable = [
 exclude = ["archives", "backups"]  # additional dirs beyond DEFAULT_SKIP_DIRS
 
 [tool.pycodekg]
-# Directories included in the CodeKG knowledge graph build and analysis
+# Exclude test directories from the knowledge graph.
+# Tests skew architectural metrics (fan-in, public API surface, docstring coverage)
+exclude = ["tests"]
 include = ["src"]
 
 [tool.dockg]
-# Directories excluded from the DocKG knowledge graph build
-exclude = ["bundles", "dist"]
+exclude = [
+    ".dockg", ".pycodekg", ".filetreekg", ".git", ".mypy_cache", ".pytest_cache", ".venv",
+    "__pycache__", "bundles", "dist", "src", "venv",
+]

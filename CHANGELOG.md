@@ -8,10 +8,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- `ftree_kg.metadata` — per-format metadata extractor with image EXIF support via Pillow (camera make/model, lens, capture timestamp, description, ISO/F-number/exposure/focal length, GPS lat/lon decoded from DMS); stubs in place for audio/video/PDF
+- `nodes.metadata` SQLite column — JSON blob populated by Pass 2.5 of `FileTreeKG.build()` with the canonical metadata dict for each file node
+- `FileTreeKG.build(embed=True, metadata=True)` — Pass 2.5 (per-format metadata) and Pass 3 (LanceDB embedding) added to the build pipeline; both can be disabled
+- `_embed_text()` — canonical text document builder used at embed time: `"{kind} {basename} at {path}"` plus a keyword line of path components, basename token splits, extension, and metadata-projected prose tokens (e.g. `"Apple iPhone 14 Pro 2023 beach at sunset"`)
+- `FileTreeKG._semantic_query()` — LanceDB vector search over the `kg_nodes` table via `kg_utils.embedder`; returns ranked nodes with cosine-derived score
+- `FileTreeKG._lexical_query()` — substring LIKE fallback (now also searching the `metadata` JSON blob), used when no vector index exists
+- `FileTreeKG.pack()` — populates `SnippetPack.snippets` with real per-node content (kind, path, formatted size, docstring, EXIF prose) in addition to the existing `nodes` field
+- `tests/test_metadata.py` — EXIF extraction tests including GPS DMS → decimal round-trip
+- `tests/test_snapshots.py` — coverage for the FtreeSnapshotManager subclass
+- Expanded `tests/test_query.py` — image-metadata embed-text and pack-snippet coverage
 
 ### Changed
+- `FileTreeKG.query()` — now performs semantic vector search first (LanceDB + embedder), with the lexical LIKE search as a graceful fallback when the vector index is missing or the embedder cannot load
+- `pyproject.toml` — `lancedb>=0.29.0` and `pillow>=10.0.0` added as core dependencies (semantic search and EXIF are now first-class); `kg-snapshot` git dep removed in favour of `kg_utils.snapshots`; `kgmodule-utils` bumped to `>=0.2.1`; `kgdeps` extra now resolves `pycode-kg` and `doc-kg` from PyPI; `black` removed (ruff handles formatting); `[tool.ruff.lint]` and `[tool.pytest.ini_options]` blocks added; pylint config switched to disable-all-then-enable to surface only the rules we care about
+- `ftree_kg.snapshots` — imports `Snapshot`, `SnapshotManifest`, `SnapshotManager`, and `PruneResult` from `kg_utils.snapshots` (was `kg_snapshot.snapshots`); `import importlib.metadata` lifted to module top
+- `cmd_status.py` — `datetime.timezone` import replaced with `datetime.UTC`
 
 ### Fixed
+- mypy: `_embed_text(row: tuple)` annotated as `tuple[Any, ...]` to satisfy `type-arg`
+- mypy: `extract_image_metadata` now skips EXIF tags whose id is missing from `PIL.ExifTags.TAGS` instead of falling back to the int id, so `_EXIF_FIELDS.get(tag_name)` always sees a `str`
+- mypy: `tests/test_query.py` asserts `kg.db_path is not None` before passing it to `sqlite3.connect()`
+- mypy: removed unused `# type: ignore[attr-defined]` on `from PIL.TiffImagePlugin import IFDRational` in `tests/test_metadata.py`
+- pylint: `extract_image_metadata` outer `except Exception` annotated `# pylint: disable=broad-exception-caught`
 
 ### Removed
 

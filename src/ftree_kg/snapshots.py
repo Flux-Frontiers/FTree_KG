@@ -30,6 +30,7 @@ Usage
 
 from __future__ import annotations
 
+import importlib.metadata
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -38,9 +39,12 @@ from typing import Any, cast
 # ---------------------------------------------------------------------------
 # Re-export shared models for backwards compatibility
 # ---------------------------------------------------------------------------
-from kg_snapshot.snapshots import PruneResult  # noqa: F401  re-exported
-from kg_snapshot.snapshots import Snapshot, SnapshotManifest
-from kg_snapshot.snapshots import SnapshotManager as _BaseSnapshotManager
+from kg_utils.snapshots import (
+    PruneResult,  # noqa: F401  re-exported
+    Snapshot,
+    SnapshotManifest,
+)
+from kg_utils.snapshots import SnapshotManager as _BaseSnapshotManager
 
 __all__ = [
     "Snapshot",
@@ -200,8 +204,6 @@ class FtreeSnapshotManager(_BaseSnapshotManager):
             "filetreekg" if "ftree-kg" is not installed.
         """
         # Resolve the best available package name at construction time.
-        import importlib.metadata
-
         resolved_name = package_name
         try:
             importlib.metadata.version(package_name)

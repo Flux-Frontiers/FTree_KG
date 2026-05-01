@@ -10,7 +10,7 @@ Author: Eric G. Suchanek, PhD
 from __future__ import annotations
 
 import importlib.metadata
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 from rich.columns import Columns
@@ -71,7 +71,7 @@ def status(repo: str, db: str) -> None:
 
     version = importlib.metadata.version("ftree-kg")
     db_size_mb = round(db_path.stat().st_size / 1_048_576, 3)
-    built_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=timezone.utc).strftime(
+    built_at = datetime.fromtimestamp(db_path.stat().st_mtime, tz=UTC).strftime(
         "%Y-%m-%d %H:%M:%S UTC"
     )
 
