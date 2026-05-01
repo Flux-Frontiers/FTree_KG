@@ -7,7 +7,7 @@ OVERVIEW
 
 FTreeKG constructs a deterministic, queryable knowledge graph from a filesystem tree. It walks a directory, classifies every entry as a file, directory, or symlink, captures filesystem stat (size, mtime, mode, symlink target) and per-format metadata (image EXIF: camera, date, GPS, dimensions), persists the result to SQLite, and embeds canonical text per node into LanceDB for natural-language retrieval. Structure is treated as ground truth; semantic search is an acceleration layer. Every node maps to a concrete relative path under the repository root.
 
-The system ships as: a Python library with a single FileTreeKG orchestrator, a Click-based CLI (ftreekg) with subcommands for build, query, pack, status, analyze, snapshot, and install-hooks, and a KGRAG adapter (FileTreeKGAdapter) that registers as kind="meta" alongside PyCodeKG (kind="code") and DocKG (kind="docs").
+The system ships as: a Python library with a single FileTreeKG orchestrator, a Click-based CLI (ftreekg) with subcommands for build, query, pack, status, analyze, snapshot, and install-hooks, and a KGRAG adapter (FileTreeKGAdapter) that registers as kind="filetree" alongside PyCodeKG (kind="code") and DocKG (kind="doc").
 
 DESIGN PRINCIPLES
 
@@ -35,7 +35,7 @@ load_include_dirs(repo_root) and load_exclude_dirs(repo_root) read [tool.filetre
 
 LAYER 4 - ORCHESTRATOR (module.py)
 
-FileTreeKG subclasses kg_utils.types.KGModule. It owns the SQLite database path (default <repo>/.filetreekg/graph.sqlite) and the LanceDB directory path (default <repo>/.filetreekg/lancedb). The kind() method returns "meta", classifying it as structural metadata in the KGRAG taxonomy.
+FileTreeKG subclasses kg_utils.types.KGModule. It owns the SQLite database path (default <repo>/.filetreekg/graph.sqlite) and the LanceDB directory path (default <repo>/.filetreekg/lancedb). The kind() method returns "filetree" (KGKind.FILETREE), classifying it as a filesystem-tree knowledge graph in the KGRAG taxonomy — distinct from "code", "doc", "diary", "memory", and "agent".
 
 Methods: build(wipe=True, embed=True, metadata=True) for the full pipeline, stats() returning a dict with total_nodes, total_edges, node_counts, edge_counts, total_size_bytes, and size_by_top_dir, query(q, k=8) returning a QueryResult of ranked nodes, pack(q, k=8, max_nodes=15) returning a SnippetPack with per-node metadata blocks, analyze() returning a Markdown report, close() to release any resources.
 
@@ -47,7 +47,7 @@ prune_snapshots cleans three categories: metric-duplicates (interior snapshots w
 
 LAYER 6 - KGRAG ADAPTER (adapter.py)
 
-FileTreeKGAdapter wraps FileTreeKG so it registers cleanly with the KGRAG federated retrieval system. kind="meta" distinguishes filesystem/structural metadata from kind="code" (PyCodeKG) and kind="docs" (DocKG). Federated queries via kgrag.query(q, kinds=["code","docs","meta"]) reach all three knowledge graphs simultaneously.
+FileTreeKGAdapter wraps FileTreeKG so it registers cleanly with the KGRAG federated retrieval system. kind="filetree" (the dedicated KGKind.FILETREE enum value) distinguishes filesystem trees from kind="code" (PyCodeKG) and kind="doc" (DocKG). Federated queries via kgrag.query(q, kinds=["code","doc","filetree"]) reach all three knowledge graphs simultaneously.
 
 BUILD PIPELINE
 
@@ -115,7 +115,7 @@ to QueryResult ranked node list
 to FileTreeKG.pack() producing per-node metadata blocks (kind + path + size + docstring + prose-rendered metadata)
 or to FileTreeKG.analyze() producing a Markdown report (summary, size chart, directory tree, breakdowns)
 or to ftreekg status rendering a Rich terminal dashboard
-or to FileTreeKGAdapter exposing FTreeKG to KGRAG as kind="meta" alongside PyCodeKG (code) and DocKG (docs)
+or to FileTreeKGAdapter exposing FTreeKG to KGRAG as kind="filetree" alongside PyCodeKG (code) and DocKG (doc)
 
 CLI ENTRY POINTS
 
@@ -137,7 +137,7 @@ CLI: ftreekg + the five script aliases above.
 
 Python API: from ftree_kg import FileTreeKG; kg = FileTreeKG(repo_root); kg.build(); kg.query(q); kg.pack(q); kg.stats(); kg.analyze().
 
-KGRAG: FileTreeKGAdapter registers as kind="meta". Federated queries via kgrag.query(q, kinds=["code","docs","meta"]) include FTreeKG results alongside PyCodeKG and DocKG.
+KGRAG: FileTreeKGAdapter registers as kind="filetree". Federated queries via kgrag.query(q, kinds=["code","doc","filetree"]) include FTreeKG results alongside PyCodeKG and DocKG.
 
 DEPENDENCIES
 
@@ -164,7 +164,7 @@ For a single-image architecture diagram, the canonical layout is left-to-right:
 3. Per-format metadata: a small parallel band feeding off the file branch - Pillow EXIF for images, with stubs for audio/video/PDF.
 4. SQLite (canonical store): center band labeled .filetreekg/graph.sqlite with two tables (nodes, edges). This is authoritative.
 5. LanceDB (derived index): adjacent to SQLite, labeled .filetreekg/lancedb/kg_nodes.lance, with an arrow from SQLite indicating "embedded canonical text + metadata keywords".
-6. Query path: right-side band branching into ftreekg query, ftreekg pack, ftreekg analyze, ftreekg status, and the KGRAG adapter (kind="meta"). Snapshots are a small loop hanging off SQLite.
+6. Query path: right-side band branching into ftreekg query, ftreekg pack, ftreekg analyze, ftreekg status, and the KGRAG adapter (kind="filetree"). Snapshots are a small loop hanging off SQLite.
 7. Time axis: snapshots over commits, captured by the pre-commit hook, keyed by git tree hash.
 
 Color coding: filesystem in green, extractor in blue, metadata extractor in purple (a sub-color of blue), SQLite in orange (canonical), LanceDB in yellow (derived), CLI/API consumers in gray. Arrows from SQLite to LanceDB should be dashed (derived/disposable). Arrows into KGRAG should be a different style (federation). The whole pipeline reads left-to-right with the consumers fanning out on the right.

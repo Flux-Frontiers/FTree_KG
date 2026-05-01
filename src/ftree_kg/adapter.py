@@ -25,7 +25,7 @@ from ftree_kg.module import FileTreeKG
 class FileTreeKGAdapter(KGAdapter):  # type: ignore[misc]
     """KGRAG adapter for FileTreeKG.
 
-    :param entry: KGEntry with kind=KGKind.META.
+    :param entry: KGEntry with kind=KGKind.FILETREE.
     """
 
     def __init__(self, entry: KGEntry) -> None:
@@ -62,7 +62,7 @@ class FileTreeKGAdapter(KGAdapter):  # type: ignore[misc]
             return [
                 CrossHit(
                     kg_name=self.entry.name,
-                    kg_kind=KGKind.META,
+                    kg_kind=KGKind.FILETREE,
                     node_id=n["node_id"],
                     name=n.get("name", ""),
                     kind=n.get("kind", ""),
@@ -90,7 +90,7 @@ class FileTreeKGAdapter(KGAdapter):  # type: ignore[misc]
             return [
                 CrossSnippet(
                     kg_name=self.entry.name,
-                    kg_kind=KGKind.META,
+                    kg_kind=KGKind.FILETREE,
                     node_id=s.node_id,
                     source_path=s.source_path,
                     content=s.content,
@@ -113,12 +113,12 @@ class FileTreeKGAdapter(KGAdapter):  # type: ignore[misc]
             assert self._kg is not None
             s = self._kg.stats()
             return {
-                "kind": "meta",
+                "kind": "filetree",
                 "node_count": s.get("total_nodes", 0),
                 "edge_count": s.get("total_edges", 0),
             }
         except Exception:  # pylint: disable=broad-exception-caught
-            return {"kind": "meta", "error": "stats unavailable"}
+            return {"kind": "filetree", "error": "stats unavailable"}
 
     def analyze(self) -> str:
         """Run full analysis on this FileTreeKG instance.

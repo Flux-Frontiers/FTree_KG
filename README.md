@@ -15,184 +15,239 @@ with Semantic Indexing and Per-Format Metadata Extraction
 
 ## Overview
 
-FTreeKG constructs a **searchable, queryable knowledge graph** of any filesystem tree. It walks a directory, extracts every file, folder, and symlink as a typed node with metadata (size, path, kind, format-specific tags), connects them with structural edges, and stores everything in SQLite with a vector index layered on top via LanceDB.
+FTreeKG turns any directory tree into a knowledge graph you can talk to.
+It walks the filesystem, classifies every entry as a file, directory, or
+symlink, captures the cheap stat the OS already exposes — size, mtime,
+mode, symlink target — and reaches one step further to lift per-format
+metadata (image EXIF today; audio, video, and PDF reserved) into a
+JSON blob that travels with each node. The skeleton is persisted to
+SQLite; a LanceDB vector index sits on top for semantic search.
 
-Structure is treated as **ground truth**; semantic search is strictly an acceleration layer. The result is a filesystem you can **ask questions of** — find config files by description, locate "iPhone photos from 2023" by EXIF, analyze size distribution across a project, or feed the whole structure to an AI agent as grounded context.
+The point is to make a filesystem **askable**. *"Where do we keep
+configuration?" "Which photos came from the iPhone in 2023?" "What
+changed in `src/` since the last release?"* — questions that normally
+require some combination of `find`, `mdfind`, manual inspection, and
+guesswork get a single, ranked answer. The graph is small, fast to
+build, and cheap to rebuild, so it works equally well as a one-shot
+analysis tool, an LLM context source, and a structural complement to
+codebase- and document-level knowledge graphs in the same workflow.
 
-FTreeKG uses the same architecture as [PyCodeKG](https://github.com/Flux-Frontiers/pycode_kg) and [DocKG](https://github.com/Flux-Frontiers/doc_kg) but targets filesystem trees rather than Python source or document corpora. It is a [KGModule](https://github.com/Flux-Frontiers/kg_utils) and integrates with the [KGRAG](https://github.com/Flux-Frontiers/kgrag) federated retrieval system as a `kind="meta"` adapter.
+FTreeKG is a member of the [KGRAG](https://github.com/Flux-Frontiers/kgrag)
+family of knowledge graphs. It uses the same hybrid SQLite-plus-LanceDB
+architecture as its sister projects [PyCodeKG](https://github.com/Flux-Frontiers/pycode_kg)
+(Python source) and [DocKG](https://github.com/Flux-Frontiers/doc_kg)
+(document corpora), exposes itself to KGRAG's federated query layer with
+the dedicated `KGKind.FILETREE` kind, and is built on the shared
+[KGModule](https://github.com/Flux-Frontiers/kg_utils) primitives so it
+slots cleanly into the same agents and pipelines.
+
+The technical reading list:
+
+- **[docs/SCHEMA.md](docs/SCHEMA.md)** — node kinds, edge types, node-ID
+  format, full SQLite and LanceDB column reference, per-format metadata
+  fields.
+- **[docs/CHEATSHEET.md](docs/CHEATSHEET.md)** — query patterns, EXIF
+  search recipes, snapshot workflows, common questions answered with
+  one-liners.
+- **[docs/CLI.md](docs/CLI.md)** — flag-by-flag reference for every
+  `ftreekg` subcommand, plus the `pyproject.toml` configuration surface.
+- **[docs/pipeline.md](docs/pipeline.md)** — the build and query
+  pipelines as flowing prose, with diagram hints suitable for
+  PaperBanana or any other generator.
+- **[docs/MCP.md](docs/MCP.md)** — how the local `.mcp.json` wires
+  PyCodeKG and DocKG into AI agents working on this repo, and what a
+  dedicated FTreeKG MCP server would look like.
 
 ---
 
-## Features
+## Quick start
 
-- **Structural graph** — every node typed (`file`, `directory`, `symlink`) with `CONTAINS` edges preserving the hierarchy
-- **Semantic search** — natural-language description → ranked filesystem nodes via LanceDB vector index
-- **Per-format metadata** — image EXIF (camera, date, GPS, description, dimensions) lifted into the embed-text so `"iPhone photos from 2023"` works without filename hints
-- **Filesystem stat** — `size_bytes`, modification time, mode, symlink target stored per node
-- **Live status dashboard** — `ftreekg status` shows node/edge counts, total indexed size, LanceDB presence, and a size-by-top-directory bar chart
-- **Rich analysis** — summary table, ASCII size bar chart, directory tree (depth ≤ 3), full path/link breakdown
-- **Temporal snapshots** — save and diff graph metrics as the filesystem evolves; pre-commit hook captures snapshots automatically
-- **Dotdir exclusion** — `.git`, `.venv`, `.codekg`, and all dotdirs are skipped automatically
-- **Configurable scope** — `[tool.filetreekg]` in `pyproject.toml` to include/exclude directories
-- **Lexical fallback** — substring search over qualname/kind/docstring/metadata when the vector index is unavailable
-- **KGRAG integration** — federates with PyCodeKG and DocKG as a `kind="meta"` adapter
-
----
-
-## Quick Start
+After installing the package, point `ftreekg build` at any directory.
+The first run wipes any existing index and produces a fresh
+`.filetreekg/` folder with the SQLite graph and the LanceDB vector
+index inside it. Subsequent commands operate against that store with no
+further setup.
 
 ```bash
-# Index a directory (SQLite + LanceDB in one step)
-ftreekg build --repo /path/to/project
-
-# Natural-language query
-ftreekg query "Python test files"
-ftreekg query "iPhone photos from 2023"
-
-# Live status dashboard
-ftreekg status
-
-# Full analysis report (written to analysis/filetreekg_analysis.md)
-ftreekg analyze
+ftreekg build --repo /path/to/project    # walk + extract + embed
+ftreekg query "configuration files"      # natural-language search
+ftreekg query "iPhone photos from 2023"  # EXIF-grounded search
+ftreekg status                           # live dashboard
+ftreekg analyze                          # full Markdown report
 ```
+
+The `query` and `pack` commands are deliberately the primary surface:
+`query` returns a ranked list of nodes, `pack` returns the same nodes
+with their metadata rendered as paste-ready blocks for LLM context.
+`status` is the orientation tool — run it whenever you want to know
+what's in the index right now. `analyze` writes a longer report to
+`analysis/filetreekg_analysis.md` with a summary table, an
+ASCII size-by-top-directory bar chart, a depth-3 directory tree, and
+per-kind/per-relation breakdowns.
+
+For the full set of commands and flags see [docs/CLI.md](docs/CLI.md);
+for query recipes see [docs/CHEATSHEET.md](docs/CHEATSHEET.md).
 
 ---
 
 ## Installation
 
-**Requirements:** Python ≥ 3.12, < 3.14
+FTreeKG requires Python 3.12 or 3.13. The core install pulls Click,
+Rich, LanceDB, Pillow, and the shared `kgmodule-utils` package:
 
 ```bash
-# pip (core runtime)
-pip install ftree-kg
-
-# pip (with KG integrations — PyCodeKG, DocKG)
-pip install 'ftree-kg[kgdeps]'
-
-# Poetry
-poetry add ftree-kg
+pip install ftree-kg                  # core runtime
+pip install 'ftree-kg[kgdeps]'        # add PyCodeKG + DocKG for federation
+poetry add ftree-kg                   # Poetry equivalent
 ```
 
-> Full installer options, dev setup, git hooks: [docs/CLI.md](docs/CLI.md)
+The `kgdeps` extra is what you want if you're working in a repo where
+PyCodeKG and DocKG are also indexing alongside FTreeKG — it pins
+compatible versions of both. For a complete development setup
+(linting, tests, pre-commit, all extras), see
+[docs/CLI.md#development-setup](docs/CLI.md).
 
 ---
 
-## Usage
+## How it works
 
-### Build and query
+A build runs three meaningful passes. The first walks the tree with
+`Path.rglob`, applies the include/exclude/dotdir rules, and inserts a
+node row per entry plus a `CONTAINS` edge from each parent. The second
+re-stats every file to fill in `size_bytes`. The third — the per-format
+metadata pass — calls into the dispatcher in `ftree_kg.metadata`, which
+opens images with Pillow and decodes camera, lens, capture timestamp,
+GPS coordinates, and dimensions; the resulting dict is JSON-serialized
+into the `metadata` column. A final embedding step builds a canonical
+two-line text document for each node — `"{kind} {basename} at {path}"`
+plus a keyword line that includes path components, basename token
+splits, the file extension, and projected metadata tokens (camera
+make/model, year, year-month, GPS) — embeds them in batches via
+`kg_utils.embedder`, and writes the vectors to a single LanceDB table.
 
-```bash
-ftreekg build                        # index current directory (wipes by default)
-ftreekg build --repo /path/to/dir    # index a specific directory
-ftreekg build --no-wipe              # keep existing index, add new paths only
+That metadata projection is what makes EXIF-grounded queries work
+without any filename hints. A photo whose path is just
+`photos/IMG_0042.jpg` ends up with an embed line that mentions
+`apple iphone 14 pro 2023 2023-07 gps:37.7749,-122.4194`, so a query
+like *"iPhone photos from 2023"* matches it directly. The schema doc
+walks through the embed-text format end-to-end:
+[docs/SCHEMA.md#embed-text-format](docs/SCHEMA.md#embed-text-format).
 
-ftreekg query "large source files"   # semantic search
-ftreekg pack  "configuration files"  # metadata snippets for LLM context
-```
+Querying is intentionally simple: the query string is embedded with the
+same model used at build time, LanceDB returns the top-`k` nodes ranked
+by cosine distance, and that's the answer. There is no graph expansion
+phase — filesystem nodes have only `CONTAINS`, which is structural and
+not semantically informative for hop-style retrieval. When the LanceDB
+table is missing or the embedder fails to load, `query` falls back to a
+substring `LIKE` search across `qualname`, `kind`, `docstring`, and
+`metadata`, so it always returns something useful even on a freshly
+extracted tree with no embeddings.
 
-### Live status
-
-```bash
-ftreekg status
-```
-
-Shows node/edge counts, total indexed size, LanceDB presence, active include/exclude config, and a size-by-top-directory bar chart.
-
-### Analyze
-
-```bash
-ftreekg analyze                      # full Markdown report
-ftreekg analyze -o reports/my.md     # custom output path
-```
-
-Produces a report with summary table, size chart, directory tree, and path/link breakdowns.
-
-### Snapshots
-
-```bash
-ftreekg snapshot save 0.8.0          # capture current metrics
-ftreekg snapshot list                # show all saved snapshots
-ftreekg snapshot diff 0.7.0 0.8.0    # compare two versions
-ftreekg snapshot prune --dry-run     # preview vestigial snapshots
-ftreekg install-hooks                # auto-snapshot on every commit
-```
-
-> Full flag reference for every command: [docs/CLI.md](docs/CLI.md)
-> Query patterns and recipes: [docs/CHEATSHEET.md](docs/CHEATSHEET.md)
-> Pipeline architecture (data flow): [docs/pipeline.md](docs/pipeline.md)
+The full pipeline is described in flowing prose, layer by layer, in
+[docs/pipeline.md](docs/pipeline.md), which doubles as the input format
+for diagram generators.
 
 ---
 
 ## Python API
 
+Everything the CLI does is one method call away on `FileTreeKG`:
+
 ```python
 from ftree_kg import FileTreeKG
 
 kg = FileTreeKG(repo_root="/path/to/project")
-kg.build()                           # wipe=True by default
+kg.build()                              # wipe=True, embed=True, metadata=True
 
-# Semantic search
 result = kg.query("configuration files", k=5)
 for node in result.nodes:
-    print(f"{node['kind']:12} {node['qualname']}")
+    print(f"{node['kind']:12} {node['qualname']}  ({node['score']:.3f})")
 
-# Stats and analysis
 stats = kg.stats()
-print(f"{stats['total_nodes']} paths, {stats['total_size_bytes']} bytes")
+print(f"{stats['total_nodes']:,} paths, {stats['total_size_bytes']:,} bytes")
 
-report = kg.analyze()                # returns Markdown string
+print(kg.analyze())                     # Markdown report as a string
+kg.close()
 ```
 
----
-
-## Knowledge Graph Schema
-
-### Node kinds
-
-| Kind        | Description                         |
-|-------------|-------------------------------------|
-| `file`      | A regular file                      |
-| `directory` | A directory                         |
-| `symlink`   | A symbolic link                     |
-
-### Edge types
-
-| Type       | Description                              |
-|------------|------------------------------------------|
-| `CONTAINS` | Directory → its immediate children       |
-
-### Node ID format
-
-`<kind>:<relative_path>:<name>`
-
-Example: `file:src/ftree_kg/module.py:module.py`
+`build()` accepts `embed=False` and `metadata=False` to skip the
+expensive passes — useful when you want a fast structural index for
+testing, or when the embedder isn't available in CI.
 
 ---
 
 ## Configuration
 
-Add to your `pyproject.toml` to control which directories are indexed:
+Indexing scope is configurable from `pyproject.toml`. The block lives
+under `[tool.filetreekg]` and has two keys, both optional:
 
 ```toml
 [tool.filetreekg]
-include = ["src", "docs"]   # restrict to these directories (empty = all)
+include = ["src", "docs"]   # restrict to these top-level directories
 exclude = ["archives"]      # skip in addition to the built-in skip list
 ```
 
-Dotdirs (`.git`, `.venv`, `.codekg`, etc.) are always excluded unless explicitly listed in `include`.
+`include` is a whitelist — when it's non-empty, only paths under one of
+the listed directories are indexed. `exclude` is additive on top of
+the always-skipped names (`venv`, `env`, `__pycache__`, `build`,
+`dist`, `egg-info`, `node_modules`). All dotdirs (`.git`, `.venv`,
+`.codekg`, …) are skipped automatically unless you explicitly list them
+in `include`.
+
+CLI flags `--include-dir` and `--exclude-dir` override the config when
+specified. Full precedence rules and per-command examples live in
+[docs/CLI.md](docs/CLI.md).
 
 ---
 
-## Storage Layout
+## Storage
+
+A built tree gets a single hidden directory:
 
 ```
 .filetreekg/
-  graph.sqlite      # SQLite knowledge graph (nodes + edges + metadata blobs)
-  lancedb/          # LanceDB vector index (kg_nodes.lance)
-  snapshots/        # Temporal metric snapshots (JSON)
+  graph.sqlite       # canonical knowledge graph (nodes + edges + metadata)
+  lancedb/           # derived vector index (kg_nodes.lance)
+  snapshots/         # temporal metric snapshots, keyed by git tree hash
     manifest.json
     <tree-hash>.json
 ```
+
+SQLite is **canonical** — it is the source of truth. LanceDB is
+**derived and disposable**: deleting `.filetreekg/lancedb/` and
+re-running `ftreekg build` reproduces it without re-walking the tree
+(the embed pass reads from SQLite). Snapshots are append-only and
+keyed by the git tree hash of the staged index, so they form a
+deterministic timeline you can `diff` between commits or releases.
+`ftreekg install-hooks` writes a pre-commit hook that captures a
+snapshot on every commit.
+
+For column-level details — node IDs, every SQLite column, every
+LanceDB column, every per-format metadata field — see
+[docs/SCHEMA.md](docs/SCHEMA.md).
+
+---
+
+## KGRAG federation
+
+`FileTreeKG.kind()` returns `"filetree"` (the dedicated
+`KGKind.FILETREE` enum value), and `FileTreeKGAdapter` exposes the
+module to the [KGRAG](https://github.com/Flux-Frontiers/kgrag)
+federation layer. That means a single federated query can combine
+filesystem context with code and document context from PyCodeKG and
+DocKG indexed against the same repo:
+
+```python
+from kg_rag import KGRAG
+
+kgrag = KGRAG()
+result = kgrag.query("how do we ship releases",
+                     kinds=["code", "doc", "filetree"])
+```
+
+For working with the repo through MCP-compatible AI agents — including
+the `.mcp.json` shipped in this checkout and the federated alternative
+to a dedicated FTreeKG MCP server — see [docs/MCP.md](docs/MCP.md).
 
 ---
 
@@ -224,4 +279,5 @@ If you use FTreeKG in research or a project, please cite it:
 
 ## License
 
-[Elastic License 2.0](LICENSE) — free for non-commercial and internal use; commercial redistribution requires a license from Flux-Frontiers.
+[Elastic License 2.0](LICENSE) — free for non-commercial and internal
+use; commercial redistribution requires a license from Flux-Frontiers.

@@ -56,14 +56,14 @@ print(analysis)
 
 ## Integration with KGRAG
 
-FileTreeKG integrates with KGRAG for federated queries across CodeKG, DocKG, and other knowledge graphs:
+FileTreeKG integrates with KGRAG for federated queries across PyCodeKG, DocKG, and other knowledge graphs:
 
 ```python
 from kg_rag import KGRAG
 
 kgrag = KGRAG()
 # Query all registered KGs including FileTreeKG
-results = kgrag.query("find all config files", kinds=["meta"])
+results = kgrag.query("find all config files", kinds=["filetree"])
 ```
 
 ## Project Structure

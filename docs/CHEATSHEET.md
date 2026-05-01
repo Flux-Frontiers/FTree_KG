@@ -392,15 +392,15 @@ photo taken on `2023:07:15` with an iPhone contains `Apple iPhone 2023
 ## 12. KGRAG Integration
 
 FTreeKG ships an adapter for the [KGRAG federated retrieval system](https://github.com/Flux-Frontiers/kgrag).
-It registers with `kind="meta"`, distinguishing filesystem/structural metadata
-from `kind="code"` (PyCodeKG) and `kind="docs"` (DocKG).
+It registers with `kind="filetree"` (the dedicated `KGKind.FILETREE` value), distinct
+from `kind="code"` (PyCodeKG) and `kind="doc"` (DocKG).
 
 ```python
 from kg_rag import KGRAG
 
 kgrag = KGRAG()
 # Federated query — combines code, docs, and filesystem context
-result = kgrag.query("how do we ship releases", kinds=["code", "docs", "meta"])
+result = kgrag.query("how do we ship releases", kinds=["code", "doc", "filetree"])
 ```
 
 ---

@@ -208,9 +208,9 @@ class FileTreeKG(KGModule):
     def kind(self) -> str:
         """Return the KGKind string for this module.
 
-        :return: "meta"
+        :return: "filetree"
         """
-        return "meta"
+        return "filetree"
 
     def build(self, wipe: bool = True, embed: bool = True, metadata: bool = True) -> None:
         """Build the SQLite graph index and (optionally) the LanceDB vector index.
