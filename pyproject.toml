@@ -64,11 +64,11 @@ description = "KGModule for file tree knowledge graphs"
 readme = "README.md"
 license = "Elastic-2.0"
 authors = [
-    { name = "Eric G. Suchanek, PhD", email = "suchanek@mac.com" }
+    { name = "Eric G. Suchanek, PhD", email = "suchanek@flux-frontiers.com" }
 ]
 keywords = ["knowledge-graph", "filesystem", "lancedb", "sqlite", "semantic-search", "kgmodule"]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
@@ -79,7 +79,7 @@ classifiers = [
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "click>=8.1.0,<9",
-    "kgmodule-utils>=0.2.1",
+    "kgmodule-utils>=0.2.4",
     "lancedb>=0.29.0",
     "pillow>=10.0.0",
     "rich>=13.0.0",
